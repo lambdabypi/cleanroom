@@ -1,0 +1,65 @@
+{
+  "name": "gpu_cloud_pricing",
+  "description": "On-demand GPU cloud pricing, one row per offered instance configuration.",
+  "expected_rows_per_page": 8,
+  "search": {
+    "topic": "on-demand GPU cloud hourly pricing per GPU H100 A100 comparison",
+    "freshness": "month",
+    "count": 10
+  },
+  "_notes": [
+    "The pattern/deny_pattern constraints are load-bearing, not decoration.",
+    "Without them a `string` field accepts anything, and an extractor that reads",
+    "a page's cost-example table instead of its pricing table scores just as",
+    "well as one that reads the right table. Observed before tightening: rows",
+    "like provider='10 hours', usd_per_hour=215.20 scoring 0.92."
+  ],
+  "fields": [
+    {
+      "name": "provider",
+      "type": "string",
+      "required": true,
+      "max_length": 40,
+      "deny_pattern": "\\b\\d+\\s*(?:hour|hr|day|week|month|gpu)s?\\b|lasting|experiment|serving|\\bover\\b|\\bfor\\b|total cost|per\\s",
+      "description": "Company offering the instance, e.g. 'Lambda Labs'. Short proper noun, never a duration or a worked example."
+    },
+    {
+      "name": "gpu_model",
+      "type": "string",
+      "required": true,
+      "max_length": 60,
+      "pattern": "H100|H200|A100|A10\\b|A40|L4\\b|L40|B200|GB200|V100|T4\\b|RTX|409\\d|509\\d|A6000|MI300|MI250|TPU|Gaudi",
+      "description": "GPU model as advertised, e.g. 'H100 SXM'. Must name a real accelerator."
+    },
+    {
+      "name": "gpu_count",
+      "type": "integer",
+      "required": false,
+      "min": 1,
+      "max": 1024,
+      "description": "GPUs per instance. Null when the page quotes a per-GPU rate only."
+    },
+    {
+      "name": "usd_per_hour",
+      "type": "number",
+      "required": true,
+      "min": 0.01,
+      "max": 100,
+      "description": "On-demand hourly price in USD. An 8xH100 node is ~$25/hr, so anything above 100 is a total-cost figure, not an hourly rate."
+    },
+    {
+      "name": "region",
+      "type": "string",
+      "required": false,
+      "max_length": 40,
+      "description": "Region or datacenter, when stated."
+    },
+    {
+      "name": "source_url",
+      "type": "string",
+      "required": true,
+      "format": "url",
+      "description": "Page the row was read from. Injected by the harness -- extractors must leave this None."
+    }
+  ]
+}

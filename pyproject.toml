@@ -1,0 +1,45 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "cleanroom"
+version = "0.1.0"
+description = "A self-improving web-to-clean-dataset ETL agent that learns which extraction strategy works per source type"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "anthropic>=1.0.0",
+    "requests>=2.32.0",
+    "typer>=0.12.0",
+    "rich>=13.7.0",
+    "python-dotenv>=1.0.0",
+    "pydantic>=2.7.0",
+]
+
+[project.optional-dependencies]
+# Kept separate because crewai pulls a large dependency tree (chromadb, lancedb,
+# onnxruntime, pyarrow). The learning loop runs without it -- see
+# `cleanroom run --no-crew` -- which keeps the core testable in seconds.
+#
+# Floors are the versions actually verified, not the oldest that might work.
+# crewai 1.x reorganised enough that an optimistic older pin is a trap, and
+# `crewai-tools[mcp]` no longer declares an `mcp` extra, so mcp is explicit.
+crew = [
+    "crewai>=1.15.0",
+    "crewai-tools>=1.15.0",
+    "mcp>=1.28.0",
+]
+sandbox = ["daytona>=0.198.0"]
+viz = ["matplotlib>=3.8.0"]
+ui = ["streamlit>=1.36.0", "matplotlib>=3.8.0"]
+dev = ["pytest>=8.0.0"]
+
+[project.scripts]
+cleanroom = "cleanroom.cli:app"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/cleanroom"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
