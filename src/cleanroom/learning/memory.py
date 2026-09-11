@@ -179,6 +179,31 @@ class MemoryStore:
             )
         return lessons
 
+    def recent(self, limit: int = 10) -> list[Lesson]:
+        """Most recently written lessons, newest first.
+
+        Distinct from `search()` on purpose. A *display* surface -- the dashboard
+        or `cleanroom report` -- wants "what has this agent learned", which is a
+        recency question. Searching for a fixed term instead is how the lessons
+        panel ended up silently empty: no lesson text happens to contain the word
+        "extraction", so token overlap was zero and the panel just did not render.
+        Retrieval during an episode still uses `search()`, where relevance to the
+        page at hand is exactly what matters.
+        """
+        rows = list(read_jsonl(self.cfg.memory_path))
+        lessons = [
+            Lesson(
+                text=str(raw.get("text") or ""),
+                tags=tuple(raw.get("tags") or ()),
+                weight=float(raw.get("weight") or 1.0),
+                timestamp=str(raw.get("timestamp") or ""),
+            )
+            for raw in rows
+            if raw.get("text")
+        ]
+        # The local mirror is append-only, so file order is chronological.
+        return list(reversed(lessons))[:limit]
+
     def _search_local(self, query: str, *, limit: int) -> list[Lesson]:
         q = _tokens(query)
         if not q:

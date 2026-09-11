@@ -233,11 +233,18 @@ with tab_learn:
             st.markdown(f"**{bucket}**")
             st.dataframe(rows, hide_index=True, use_container_width=True)
 
-    lessons = MemoryStore(settings).search("extraction", limit=10)
+    st.subheader("Lessons the agent wrote itself")
+    memory = MemoryStore(settings)
+    lessons = memory.recent(limit=10)
     if lessons:
-        st.subheader("Lessons the agent wrote itself")
+        st.caption(
+            f"{memory.count()} stored in the `{memory.backend}` backend; "
+            "retrieved before the next attempt on a similar page."
+        )
         for lesson in lessons:
             st.markdown(f"- {lesson.text}")
+    else:
+        st.info("No lessons yet — they get written as episodes succeed and fail.")
 
 # -- spend -------------------------------------------------------------------
 

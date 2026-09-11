@@ -475,10 +475,16 @@ def report(
         console.print(table)
 
     memory = MemoryStore(settings)
-    recent = memory.search("extraction", limit=lessons)
-    if recent:
-        panel = "\n".join(f"- {l.text[:150]}" for l in recent)
-        console.print(Panel(panel, title=f"lessons ({memory.backend} backend)"))
+    # `recent`, not `search`: this is a display surface, so the question is "what
+    # has it learned", not "what matches this term". Searching for a fixed word
+    # left the panel silently empty, because no lesson text contains it.
+    written = memory.recent(limit=lessons)
+    if written:
+        panel = "\n".join(f"- {l.text[:150]}" for l in written)
+        console.print(
+            Panel(panel, title=f"lessons it wrote itself ({memory.count()} in "
+                               f"{memory.backend} backend)")
+        )
 
     try:
         schema = load_schema(schema_path)
