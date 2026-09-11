@@ -1,8 +1,8 @@
 # Provenance -- gpu_cloud_pricing
 
-Generated: 2026-09-11T19:56:18.131754+00:00
-Rows published: 81
-Distinct sources: 8 (from 13 pages attempted)
+Generated: 2026-09-11T20:08:36.843761+00:00
+Rows published: 96
+Distinct sources: 8 (from 14 pages attempted)
 Retrieval: You.com Search + Contents APIs (public web)
 
 ## Clean Data policy
@@ -23,3 +23,4 @@ Retrieval: You.com Search + Contents APIs (public web)
 | 20 | 2026-09-11T19:44:10 | [NVIDIA A100 Pricing (September 2026): Cheapest On-demand GPU ...](https://www.thundercompute.com/blog/nvidia-a100-pricing) |
 | 4 | 2026-09-11T19:45:51 | [Oracle Cloud (OCI) GPU Pricing 2026: H100, H200, B200 and A100 ...](https://www.thundercompute.com/blog/oracle-cloud-oci-gpu-pricing) |
 | 1 | 2026-09-11T19:47:41 | [NVIDIA H100 Pricing (September 2026): Cheapest Cloud GPU Rates ...](https://www.thundercompute.com/blog/nvidia-h100-pricing) |
+| 15 | 2026-09-11T19:57:59 | [NVIDIA H100 Pricing (September 2026): Cheapest Cloud GPU Rates ...](https://www.thundercompute.com/blog/nvidia-h100-pricing) |
