@@ -14,3 +14,5 @@ CoreWeave,H100,8,6.16,,https://www.thundercompute.com/blog/nvidia-h100-pricing
 Azure,H100,1,6.98,,https://www.thundercompute.com/blog/nvidia-h100-pricing
 Oracle Cloud,H100,1,10.0,,https://www.thundercompute.com/blog/nvidia-h100-pricing
 Thunder Compute,A100,1,1.09,,https://www.thundercompute.com/blog/nvidia-h100-pricing
+
+# re-published to exercise the update path
