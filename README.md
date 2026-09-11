@@ -15,7 +15,7 @@ measured rather than asserted.
 ```
 You.com page ──► classify shape ──► recall past lessons ──► pick strategy (bandit)
                                                                     │
-                                                      Claude writes extract()
+                                              an LLM writes extract()
                                                                     │
                                                      Daytona runs it in a sandbox
                                                                     │
@@ -28,6 +28,9 @@ You.com page ──► classify shape ──► recall past lessons ──► pi
                                             valid rows ──► dataset ──► One ──► GitHub
 ```
 
+~7,000 lines of Python, 110 tests that run in under a second with no credentials
+and no network.
+
 ---
 
 ## Why a bandit and not deep RL
@@ -38,7 +41,7 @@ a **contextual bandit**, not policy-gradient fine-tuning.
 | | Verdict |
 |---|---|
 | PPO / GRPO on a policy network | No reward dataset, no GPU budget, and — worst — a half-trained policy is invisible in a three-minute demo. |
-| **Thompson sampling over a discrete strategy set** | Genuinely reinforcement learning. ~150 lines, CPU-only, converges in 15–30 episodes, and its state is a readable JSON file. |
+| **Thompson sampling over a discrete strategy set** | Genuinely reinforcement learning. ~130 lines, CPU-only, converges in 15–30 episodes, and its state is a readable JSON file. |
 | **Experiential memory (Reflexion-style)** | Carries the specific, textual lessons a numeric posterior cannot represent. |
 
 Cleanroom runs the last two together, because they fail differently. The bandit
@@ -57,19 +60,46 @@ prior each update, so the agent can change its mind when a site changes shape.
 This is the design decision everything else follows from. Human thumbs-up cannot
 produce enough episodes in one day to move a posterior. So the **Daytona sandbox
 is the reward function**: run the generated extractor, validate the rows it
-returns, and the pass rate is ground truth. Five channels are blended:
+returns, and the pass rate is ground truth. Channels are blended:
 
 | Channel | Weight | What it measures |
 |---|---:|---|
 | `validity` | 1.0 | rows satisfying the schema / rows returned |
 | `coverage` | 0.7 | valid rows against the page's expected record count |
 | `completeness` | 0.6 | non-empty cells / expected cells |
-| `provenance` | 0.4 | rows carrying a source URL |
+| `provenance` | 0.15 | a *check*, not an incentive — see below |
 | `human` | 2.5 | reviewer verdict, sparse — dominates when present |
 
 A crash scores exactly `0.0`. The multi-channel shape matters: validity alone
 would let the agent win by emitting one perfect row and dropping the rest of the
 page.
+
+`provenance` used to be weighted 0.4, on the theory that the agent should be
+*rewarded* for citing its sources. That was the wrong mechanism, and it cost a
+whole run to learn why: the host already knows the source URL, so making the
+generated code responsible for it just created a way to fail. Nine perfectly good
+rows scored `0.00` because the model left the field `None`. The URL is now
+injected by the validator, which makes attribution a structural guarantee rather
+than something the agent might learn. The channel survives at low weight as an
+alarm — if it ever drops below 1.0, injection is broken.
+
+### What it actually learned
+
+From a real 17-episode run against live GPU-pricing pages:
+
+```
+bucket: table_heavy
+  strategy           posterior   pulls   observed
+  table_parse          0.763       4      0.899
+  heading_sections     0.716       3      0.863
+  label_value_pairs    0.584       1      0.753
+  regex_fields         0.543       3      0.578
+
+bucket: prose        → best strategy: regex_fields
+bucket: table_heavy  → best profile:  lean
+```
+
+Cost: about half a cent.
 
 ---
 
@@ -91,8 +121,7 @@ estimated total $0.1522   likely billed $0.0098   (difference is free-tier usage
 ```
 
 Estimated and billed are reported separately so a free tier does not hide what a
-run would cost on a paid plan. The `$120` Agents bill would have been obvious
-after two episodes with this in place — which is exactly why it exists.
+run would cost on a paid plan.
 
 ### The efficiency loop
 
@@ -107,8 +136,8 @@ shape, where a profile is a spend budget:
 
 Its reward is cost-penalised: `utility = value - LAMBDA * normalised_cost`. So
 the strategy bandit learns *what works* while the profile bandit learns *what is
-worth paying for*. On a simulated run the two land in different places for
-different page shapes, which is the whole point:
+worth paying for*. The two land in different places for different page shapes,
+which is the whole point:
 
 ```
 bucket: table_heavy      bucket: prose
@@ -143,29 +172,45 @@ episodes that used the currently-best-known strategy. Measured over 10 seeds:
 So the gate buys convergence *speed*, not asymptotic correctness — and a demo run
 lives in exactly that 20–40 episode window.
 
-Two things the ledger caught about itself, both worth knowing:
+Two things the ledger caught about itself:
 
 - **Spend is cumulative per state directory**, so a demo inherits every earlier
   probe. `cleanroom costs` splits the total into *attributed to episodes* vs
-  *probes and source gathering* — on one of our runs that read
-  `$0.02 / $60.09`, which said immediately that the learning loop was never the
-  expensive part. `--clear` resets it.
+  *probes and source gathering* — on one run that read `$0.02 / $60.09`, which
+  said immediately that the learning loop was never the expensive part.
+  `--clear` resets it.
 - **`doctor --live` used to cost $15 a run.** While the You.com Agents backend
   was configured, the code-writer probe was a real Agents call. A health check
-  must never be the expensive thing, so it is now skipped unless you pass
-  `--allow-paid`.
+  must never be the expensive thing, so the paid writer is skipped unless you
+  pass `--allow-paid`.
+
+### Adaptive execution when a tool fails
+
+The same ledger feeds `ComponentHealth`, which tracks an EWMA success rate per
+component and opens a circuit breaker after 3 consecutive failures, so the agent
+stops retrying into a wall and falls back instead. EWMA rather than a lifetime
+mean so a component that recovers is trusted again quickly — a tool should not be
+punished for an outage that ended ten episodes ago.
+
+Three concrete adaptations, all triggered by real provider behaviour:
+
+| Failure | Response |
+|---|---|
+| `429` rate limit | Honour `Retry-After`, back off up to 3 times. A 429 is a wait, not a failure — treating it as one threw away 6 of 8 episodes in testing. |
+| `413` payload too large | **Halve the document budget and retry**, then write a lesson so the profile bandit learns that tier's ceiling. |
+| `402` credits exhausted | Abort the run immediately. Grinding on would log 20 zero-reward episodes that look like a broken policy rather than a dead API key. |
 
 ### The dashboard
 
-`cleanroom ui` (needs `pip install -e ".[ui]"`) serves a Streamlit app with four
-tabs: **Learning** (the same three-panel figure the video uses, plus posteriors
-and self-written lessons), **Spend**, **Review**, and **Dataset**. It can also
-run episodes directly, with progress streaming as they land.
+`cleanroom ui` serves a Streamlit app with four tabs: **Learning** (the same
+three-panel figure the demo uses, plus posteriors and self-written lessons),
+**Spend**, **Review**, and **Dataset**. It can also run episodes directly, with
+progress streaming as they land.
 
 **Review** is the half that earns its keep. Sandbox reward is automatic and
-plentiful; a human verdict is scarce and weighted 2.5x, and until now the only
-way to give one was to type an episode number. Clicking a thumb routes through
-`learning.feedback` — the same code path as `cleanroom feedback`, so the two
+plentiful; a human verdict is scarce and weighted 2.5x, and otherwise the only
+way to give one is to type an episode number. Clicking a thumb routes through
+`learning/feedback.py` — the same code path as `cleanroom feedback`, so the two
 interfaces cannot drift — and flagging an individual bad row stores a lesson
 naming the offending values, which the next synthesis retrieves.
 
@@ -182,22 +227,6 @@ Suggested schema hardening:
 That distinction matters: a lesson influences the next prompt, whereas a
 constraint rejects the whole class of bad rows permanently.
 
-### Adaptive execution when a tool fails
-
-The same ledger feeds `ComponentHealth`, which tracks an EWMA success rate per
-component and opens a circuit breaker after 3 consecutive failures, so the agent
-stops retrying into a wall and falls back instead. EWMA rather than a lifetime
-mean so a component that recovers is trusted again quickly — a tool should not be
-punished for an outage that ended ten episodes ago.
-
-```
-┌───────────┬─────────┬───────────────────┬─────────┐
-│ component │ success │ consecutive fails │ circuit │
-├───────────┼─────────┼───────────────────┼─────────┤
-│ you       │ 0.28    │ 3                 │ open    │
-└───────────┴─────────┴───────────────────┴─────────┘
-```
-
 ---
 
 ## Clean Data, enforced rather than claimed
@@ -206,8 +235,9 @@ punished for an outage that ended ten episodes ago.
 consented, and free of personal information. Cleanroom treats that as executable,
 not as a paragraph in a README:
 
-- **Attribution is a reward channel.** Every row must carry the URL it came from;
-  rows that don't reduce the score the agent is optimising.
+- **Attribution is structural.** The validator injects the source URL into every
+  row from the page the harness actually fetched, so a row physically cannot
+  reach the dataset unattributed.
 - **PII is a validation failure.** `pipeline/validate.py` rejects any row
   containing an email address, phone number, or government-ID-shaped string, so
   it never reaches the dataset *and* costs the agent reward.
@@ -227,11 +257,25 @@ not as a paragraph in a README:
 | **Daytona** | The environment and the reward oracle. Model-written code runs here and nowhere else. | `partners/daytona_env.py` |
 | **One** | Credential layer, the `mem` lesson store, and the write-back that closes the loop. | `partners/one_client.py` |
 | **CrewAI** | Source triage before the loop, and the publish gate after it. | `crew/crew.py` |
-| **Claude Opus 5** | Writes and repairs `extract()`. Structured output; the schema and contract are cached across episodes. | `pipeline/synthesize.py` |
+| **The code writer** | Writes and repairs `extract()`. Pluggable: any OpenAI-compatible endpoint, Anthropic, or You.com Agents. | `pipeline/synthesize.py` |
 
-### Two gotchas handled up front
+### What integrating One actually took
 
-Both are documented by One and both fail *silently*, which is the worst kind:
+One's four-tool loop (`list → search → knowledge → execute`) is the right shape,
+and reading the action knowledge before executing is what surfaced most of the
+following. Recorded here because none of it is guessable and all of it fails
+confusingly:
+
+| Symptom | Cause |
+|---|---|
+| `403` on a GitHub write | `owner`/`repo`/`path` are **path variables**. One's own action knowledge is blunt: *"Do NOT pass path variables in the -d body flag."* |
+| `422 "sha" wasn't supplied` | Overwriting a file needs its current blob sha. A demo re-run hits this on the second publish. |
+| `404` on a nested path | One matches passthrough routes **by path segment**, so a literal `/` inside a variable adds a segment and the route stops matching. Percent-encoding fixes `PUT`, but *not* `GET` — so sha lookups read the **git tree** instead, which takes a single-segment ref. |
+| `The command line is too long` | npm's `one` shim is a `.cmd`, so it routes through cmd.exe and its 8191-byte limit. A base64 CSV blows past it. Writes therefore go over the **HTTP passthrough**, which has no such ceiling. |
+| `UnicodeDecodeError` on Windows | `subprocess(text=True)` decodes with the locale codepage; One emits UTF-8 (typographic apostrophes in action titles). Encoding must be explicit. |
+| Memory silently empty | `one mem add` takes `<type> <json>`, not raw text, with `--tags` as a CSV and an integer 1–10 weight. Getting it wrong returns non-zero and falls back to local storage with no visible error. |
+
+Two more, documented by One and both silent:
 
 1. **Daytona sandboxes block egress to `*.withone.ai`** (SNI inspection). The
    architecture keeps every One and You.com call on the host; the sandbox only
@@ -250,7 +294,7 @@ Both are documented by One and both fail *silently*, which is the worst kind:
 Requires Python 3.10+ and Node (for One's CLI and MCP server).
 
 ```bash
-git clone <your-repo-url>
+git clone https://github.com/lambdabypi/cleanroom
 cd cleanroom                # the pyproject.toml lives here, not in the parent
 
 python -m venv .venv
@@ -259,7 +303,7 @@ pip install -e ".[crew,ui,sandbox,viz,dev]"
 
 cp .env.example .env        # then fill it in
 npm i -g @withone/cli && one init
-one add you && one add daytona && one add github
+one add github              # then `one list` to get your connection key
 
 cleanroom doctor --live     # do this before anything else
 ```
@@ -270,21 +314,24 @@ Python. On Windows, if activation is blocked run
 `Set-ExecutionPolicy -Scope Process RemoteSigned`, or just call the interpreter
 directly as `.\.venv\Scripts\python.exe -m pytest`.
 
-Verified against **crewai 1.15.21, daytona 0.198.0, streamlit 1.63.0,
-anthropic 1.5.0, mcp 1.28.1** on Python 3.13.
+Verified against **crewai 1.15.21, crewai-tools 1.15.21, daytona 0.198.0,
+streamlit 1.63.0, anthropic 1.5.0, mcp 1.28.1, One CLI 1.56.1** on Python 3.13.
+The dependency floors are the versions actually tested, not the oldest that might
+work — crewai 1.x reorganised enough that an optimistic pin is a trap.
 
 `.env` keys:
 
 | Key | Where to get it |
 |---|---|
-| `YOU_API_KEY` | [you.com/platform](https://you.com/platform) → API Keys ($100 free credit) |
-| `CLEANROOM_LLM_*` | The code writer — any free OpenAI-compatible endpoint (see below) |
-| `DAYTONA_API_KEY` | [app.daytona.io](https://app.daytona.io) → Billing → redeem `DAYTONA_HACKATHON_NYC_PF5W2GVE` |
-| `ONE_SECRET`, `ONE_CONNECTION_KEYS` | [app.withone.ai](https://app.withone.ai/settings/api-keys) — coupon `YOU-NYC-PRO` |
+| `YOU_API_KEY` | [you.com/platform](https://you.com/platform) → API Keys |
+| `GROQ_API_KEY` (or any provider key) | The code writer — see below. Provider-native names are auto-detected. |
+| `DAYTONA_API_KEY` | [app.daytona.io](https://app.daytona.io) → Billing |
+| `ONE_SECRET`, `ONE_CONNECTION_KEYS` | `one init`, then `one list` for the connection key |
 | `ONE_PUBLISH_TARGET` | `owner/repo` the dataset is committed to |
 
-`cleanroom doctor --live` makes one real call to each partner. Auth problems found
-at hour one are cheap; at hour six they are fatal.
+`cleanroom doctor --live` makes one real call to each partner — including asking
+the code writer for an actual extractor and checking that it compiles. Auth
+problems found at hour one are cheap; at hour six they are fatal.
 
 ### Read this before picking a code writer
 
@@ -297,10 +344,10 @@ Measured on the You.com billing dashboard:
 
 So: **retrieval on You.com is effectively free, and code generation on You.com is
 not.** The Agents API works well technically — it produced correct, compiling
-extractors at `verbosity: "high"` — but eight calls cost $120. `auto` will
-therefore *never* select it, `build_synthesizer` refuses rather than silently
-falling back to it, and the backend itself caps at 3 calls per process
-(`YOU_AGENT_MAX_CALLS`).
+extractors at `verbosity: "high"`, while `"medium"` truncated them mid-function —
+but eight calls cost $120. `auto` will therefore *never* select it,
+`build_synthesizer` refuses rather than silently falling back to it, and the
+backend itself caps at 3 calls per process (`YOU_AGENT_MAX_CALLS`).
 
 The code writer is pluggable. Any OpenAI-compatible `/chat/completions` endpoint
 works, which is where the usable free tiers are:
@@ -313,20 +360,18 @@ works, which is where the usable free tiers are:
 | OpenRouter | `https://openrouter.ai/api/v1` | any `...:free` model |
 | Ollama (local) | `http://localhost:11434/v1` | `qwen2.5-coder:7b` |
 
-Provider-native key names are auto-detected, so `GROQ_API_KEY=...` on its own is
-enough — the base URL and a working model get filled in. Hosted catalogues churn
-(`llama-3.3-70b-versatile` was decommissioned and returned a bare 404), so
-**`cleanroom models`** lists what your key can actually reach and a 404 from the
-writer includes that list in the error.
+Setting `GROQ_API_KEY` (or `CEREBRAS_`/`GEMINI_`/`OPENROUTER_`/`TOGETHER_`/
+`DEEPSEEK_`) alone is enough — the base URL and a working model get filled in.
+Hosted catalogues churn (`llama-3.3-70b-versatile` was decommissioned and
+returned a bare 404), so **`cleanroom models`** lists what your key can actually
+reach, and a 404 from the writer includes that list in the error.
 
 All backends receive byte-identical prompts, so switching provider mid-project
-does not silently change the task and invalidate a run.
-
-Free tiers are requests-per-minute limited. A 429 is a wait, not a failure: the
-client honours `Retry-After` and backs off up to 3 times, and `--pause N` spaces
-episodes out. A 413 (request over the tier's token cap) is handled by *halving
-the document budget and retrying*, and writes a lesson so the profile bandit
-learns that tier's ceiling.
+does not silently change the task and invalidate a run. Output format differs by
+backend for a measured reason: Claude gets a JSON schema because structured
+output is native, while the others are asked for a fenced ```python block —
+JSON-escaping a multi-line program roughly triples its token count and was what
+triggered truncation.
 
 ---
 
@@ -354,11 +399,20 @@ Useful flags:
 
 | Flag | Why |
 |---|---|
-| `--seed 42` | Repeatable arm sampling — pin it for the demo recording. |
-| `--no-crew` | Skip CrewAI. Faster while iterating on prompts. |
-| `--greedy` | Exploit only. Use *after* learning, to show the learned policy. |
+| `--greedy` | Exploit only. Use *after* learning, and for demos — exploration deliberately samples a wrong strategy now and then, which looks like a bug on camera. |
+| `--pause N` | Seconds between episodes. Free tiers are per-minute rate limited. |
+| `--seed 42` | Repeatable arm sampling. |
+| `--no-crew` | Skip CrewAI triage. Faster while iterating on prompts. |
 | `--repairs 2` | More self-repair turns per episode. |
 | `CLEANROOM_LOCAL_VALIDATE=1` | Validate in-process, skipping Daytona. Fast, but it runs model-written code with no isolation — development only. |
+
+Posteriors, the profile bandit and the dataset are all written **after every
+episode**, not at the end of the run. Saving only at the end meant an interrupted
+run threw away everything it had learned and published an empty CSV, because the
+rows were still in memory.
+
+Run only one `cleanroom run` at a time — two concurrent runs compete for the same
+free-tier rate limit and make each other wait.
 
 ### Targeting different data
 
@@ -387,22 +441,10 @@ while keeping every genuine row. Available per-field constraints: `required`,
 
 ---
 
-## Demo script (3 minutes)
+## Demo
 
-1. `cleanroom doctor --live` — four partners green. **(15s)**
-2. `cleanroom run -n 20 --seed 42` — narrate the live table. Early episodes pick
-   strategies at random and score badly; watch repairs fire and scores climb. **(70s)**
-3. `cleanroom report` then `cleanroom costs` — the posterior table, a stored
-   lesson quoted verbatim, and the per-component spend table showing the agent
-   learned to use a cheap profile where a cheap profile suffices. **(35s)**
-4. `cleanroom curve` — the figure. Read **both** left panels: reward, and
-   exploration collapsing onto the learned policy. **(20s)**
-5. `cleanroom feedback 12 bad` then `cleanroom report` — one human verdict
-   visibly moves the posterior and changes the best arm. **(20s)**
-6. `cleanroom run -n 3 --publish --greedy` — the GitHub commit appears, and the
-   call shows up in One's log at `app.withone.ai/logs`. **(25s)**
-
-Step 6 is the one that matters most for judging: the agent changed a real system.
+See **[DEMO.md](DEMO.md)** for a 3-minute script with exact commands, timings and
+narration, written against the judging criteria.
 
 ---
 
@@ -410,40 +452,44 @@ Step 6 is the one that matters most for judging: the agent changed a real system
 
 ```
 src/cleanroom/
-  config.py               env-backed settings + preflight
-  cli.py                  doctor / run / report / curve / feedback
+  config.py               env-backed settings, provider auto-detection, preflight
+  cli.py                  doctor / run / report / costs / curve / ui / models / feedback
   learning/
     strategies.py         action space (5 arms) + page-shape context buckets
     bandit.py             contextual Thompson sampling, fractional + discounted
     budget.py             second bandit: execution profiles, cost-penalised reward
-    reward.py             five-channel reward aggregation
-    memory.py             One mem store, local JSONL fallback
-    store.py              atomic posterior persistence + episode log
+    reward.py             multi-channel reward aggregation
+    memory.py             One `mem` lesson store, local JSONL fallback
+    feedback.py           human verdicts + row rejection, shared by CLI and UI
+    store.py              atomic per-episode persistence + episode log
   observability/
     ledger.py             per-call latency/cost ledger + health circuit breaker
     pricing.py            price book (You.com figures from the dashboard)
   partners/
     you_client.py         Search + Contents, with base-URL probing
     daytona_env.py        sandbox lifecycle; reused across episodes
-    one_client.py         four-tool loop + passthrough + publish
+    one_client.py         four-tool loop, HTTP passthrough, publish + sha lookup
   pipeline/
     schema.py             schema loading and validation
-    synthesize.py         Claude writes and repairs extract()
-    validate.py           row scoring + PII rejection  (stdlib only)
-    sandbox_runner.py     in-sandbox entry point       (stdlib only)
+    synthesize.py         shared prompts + backend factory
+    openai_compat.py      any OpenAI-compatible endpoint (the default)
+    you_agent.py          You.com Agents backend, with a hard spend cap
+    validate.py           row scoring, URL injection, PII rejection  (stdlib only)
+    sandbox_runner.py     in-sandbox entry point                     (stdlib only)
     dataset.py            accumulating CSV + provenance manifest
     episode.py            the loop
   crew/
     crew.py               Source Scout, Data Steward
     mcp_helpers.py        null-dropping + input hardening for One's MCP tools
-  demo/plot_curve.py      the two-panel figure
+  demo/plot_curve.py      the three-panel figure
+  ui/app.py               Streamlit dashboard
 schemas/                  target schemas
 tests/
-  test_learning.py        bandit, buckets, validation, reward
-  test_integration_pieces.py
-                          MCP hardening, schema checks, execution fallback
+  test_learning.py        bandit, buckets, validation, reward, URL injection
+  test_integration_pieces.py   MCP hardening, schema checks, execution fallback
   test_observability.py   pricing, ledger, circuit breaker, efficiency bandit
-state/                    posterior, episode log, dataset, memory  (gitignored)
+  test_feedback.py        verdict parsing, posterior updates, constraint suggestion
+state/                    posteriors, episode log, dataset, memory, ledger  (gitignored)
 ```
 
 `validate.py` and `sandbox_runner.py` are stdlib-only with no project-relative
@@ -456,14 +502,14 @@ quietly disagreeing about what "valid" means.
 ## Tests
 
 ```bash
-pytest -q      # 75 tests, no credentials, no network, ~0.5s
+pytest -q      # 110 tests, no credentials, no network, ~0.9s
 ```
 
 They cover the property the whole demo rests on — given a genuinely better arm,
-the bandit finds it — plus reward monotonicity, PII rejection, posterior
-round-tripping, the credential-stripping in the MCP hardening layer, and the
-$15/call Agents price (asserted so a careless edit breaks a test rather than a
-budget).
+the bandit finds it — plus reward monotonicity, PII rejection, source-URL
+injection, posterior round-tripping, the credential-stripping in the MCP
+hardening layer, the two-bandit confounding gate, and the $15/call Agents price
+(asserted so a careless edit breaks a test rather than a budget).
 
 ---
 
@@ -475,21 +521,21 @@ maintain dozens of brittle scrapers or give up on freshness.
 
 Cleanroom is an agent that *learns* to extract rather than being told how. Each
 episode it classifies a page's shape, recalls what failed on similar pages, picks
-a strategy by contextual Thompson sampling, has Claude Opus 5 write the
-extractor, and runs that code in a Daytona sandbox. The validator's row pass-rate
-is the reward — automatic, verifiable ground truth, generated hundreds of times
-per run — which updates the per-shape posterior and writes a textual lesson.
-Across a run, exploration visibly collapses onto the learned policy.
+a strategy by contextual Thompson sampling, has an LLM write the extractor, and
+runs that code in a Daytona sandbox. The validator's row pass-rate is the reward —
+automatic, verifiable ground truth, generated hundreds of times per run — which
+updates the per-shape posterior and writes a textual lesson. Across a run,
+exploration visibly collapses onto the learned policy.
 
 Stack: the **You.com** Search API (`extraction_mode: full_page`) and Contents API
 supply live pages; **Daytona** is the execution environment and reward oracle;
 **One** provides managed credentials, the `mem` lesson store, and the GitHub
-write-back; **CrewAI** agents triage sources and gate publishing through One's
-four-tool loop.
+write-back through its four-tool loop; **CrewAI** agents triage sources and gate
+publishing.
 
-Clean Data is enforced rather than claimed: attribution is a reward channel, PII
-is a validation failure, and a provenance manifest ships with every dataset. The
-loop closes with a real commit.
+Clean Data is enforced rather than claimed: attribution is injected so a row
+cannot be unsourced, PII is a validation failure, and a provenance manifest ships
+with every dataset. The loop closes with a real commit.
 
 ---
 
@@ -502,10 +548,15 @@ loop closes with a real commit.
   but it cannot invent a strategy that isn't in the list.
 - **Revisiting pages inflates apparent learning.** With more episodes than
   sources the loop cycles, and a page seen twice is easier the second time.
-  Compare the curve against `--seed` runs with more sources before believing a
-  number.
+- **Raw reward is not comparable across page shapes** — a dense table can reach
+  0.95 while prose tops out near 0.70 — so an aggregate reward curve can read
+  flat even when the agent learned the right arm in every bucket. That is exactly
+  why the figure has a second, bucket-agnostic convergence panel; read both.
 - **`expected_rows_per_page` is a hand-set constant** per schema, so the coverage
   channel is only as good as that guess.
+- **The CrewAI Data Steward publish gate has been exercised less** than the
+  direct publish path. `--publish` falls back to a direct One call if the crew
+  path fails.
 
 ## License
 
