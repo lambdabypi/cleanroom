@@ -23,8 +23,18 @@ cleanroom doctor
 ## 0:20–1:10 — The learning loop, live
 
 ```
-cleanroom run -n 6 --pause 4
+cleanroom run -n 3 --greedy
 ```
+
+**Use `--greedy`.** Without it the bandit explores, which means it deliberately
+samples a wrong strategy now and then and you get a `0.00` on camera. Greedy
+exploits the policy it has already learned, so episodes score 0.9+ and the
+prompts are smaller (it picks the learned `lean` profile), which is also faster.
+Frame it as: *"now that it has learned, run it greedy — it picks the right
+strategy every time."*
+
+Only one run at a time: Groq's free tier is rate-limited per minute, and two
+concurrent runs will make each other wait.
 
 Narrate while it scrolls:
 

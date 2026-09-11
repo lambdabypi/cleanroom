@@ -462,6 +462,18 @@ class Learner:
             llm_calls=llm_calls,
         )
 
+        # Persist after every episode, not just at the end of the run. Writes are
+        # atomic (temp file + rename), so a concurrent `cleanroom report` either
+        # sees the previous posterior or the new one, never a torn file. Saving
+        # only at the end meant a crash at episode 23 threw away 23 episodes of
+        # learning, and made `report` useless while a run was in flight.
+        save_bandit(self.bandit, self.cfg)
+        save_profile_bandit(self.profiles, self.cfg)
+        # The dataset is the run's actual artifact and it was also only written
+        # at the end -- interrupting a run published an empty CSV because every
+        # extracted row was still in memory.
+        self.dataset.save()
+
         log_episode(
             EpisodeRecord(
                 episode=episode,
