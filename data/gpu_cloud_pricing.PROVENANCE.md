@@ -1,8 +1,8 @@
 # Provenance -- gpu_cloud_pricing
 
-Generated: 2026-09-11T20:08:36.843761+00:00
-Rows published: 96
-Distinct sources: 8 (from 14 pages attempted)
+Generated: 2026-09-16T01:29:37.292927+00:00
+Rows published: 193
+Distinct sources: 8 (from 30 pages attempted)
 Retrieval: You.com Search + Contents APIs (public web)
 
 ## Clean Data policy
@@ -14,13 +14,20 @@ Retrieval: You.com Search + Contents APIs (public web)
 
 | Rows | Retrieved | Source |
 | ---: | --------- | ------ |
-| 14 | 2026-09-11T19:36:26 | [NVIDIA H100 Pricing (September 2026): Cheapest Cloud GPU Rates ...](https://www.thundercompute.com/blog/nvidia-h100-pricing) |
-| 3 | 2026-09-11T19:37:06 | [NVIDIA H100 Price Guide 2026: GPU Costs, Cloud Pricing & Buy vs Rent](https://jarvislabs.ai/blog/h100-price) |
-| 1 | 2026-09-11T19:39:53 | [H100 Cloud Pricing: Compare 54+ Providers (2026)](https://getdeploying.com/gpus/nvidia-h100) |
-| 28 | 2026-09-11T19:41:01 | [Cloud GPU pricing comparison 2026: every provider's real rates](https://www.cloudzero.com/blog/cloud-gpu-pricing-comparison/) |
-| 3 | 2026-09-11T19:41:53 | [Cloud GPU Pricing - Compare 79 Providers and 4,800+ Prices (2026)](https://getdeploying.com/gpus) |
-| 7 | 2026-09-11T19:43:01 | [H100 GPU Cost In 2026: Buy, Rent, And Cloud Pricing Compared](https://www.cloudzero.com/blog/h100-gpu-cost/) |
-| 20 | 2026-09-11T19:44:10 | [NVIDIA A100 Pricing (September 2026): Cheapest On-demand GPU ...](https://www.thundercompute.com/blog/nvidia-a100-pricing) |
-| 4 | 2026-09-11T19:45:51 | [Oracle Cloud (OCI) GPU Pricing 2026: H100, H200, B200 and A100 ...](https://www.thundercompute.com/blog/oracle-cloud-oci-gpu-pricing) |
-| 1 | 2026-09-11T19:47:41 | [NVIDIA H100 Pricing (September 2026): Cheapest Cloud GPU Rates ...](https://www.thundercompute.com/blog/nvidia-h100-pricing) |
-| 15 | 2026-09-11T19:57:59 | [NVIDIA H100 Pricing (September 2026): Cheapest Cloud GPU Rates ...](https://www.thundercompute.com/blog/nvidia-h100-pricing) |
+| 13 | 2026-09-16T01:06:24 | [NVIDIA H100 Pricing (September 2026): Cheapest Cloud GPU Rates ...](https://www.thundercompute.com/blog/nvidia-h100-pricing) |
+| 3 | 2026-09-16T01:06:31 | [NVIDIA H100 Price Guide 2026: GPU Costs, Cloud Pricing & Buy vs Rent](https://jarvislabs.ai/blog/h100-price) |
+| 14 | 2026-09-16T01:07:09 | [Cloud GPU Pricing - Compare 79 Providers and 4,600+ Prices (2026)](https://getdeploying.com/gpus) |
+| 24 | 2026-09-16T01:07:50 | [GPU Cloud Pricing Comparison 2026: H100 From $2.01/hr \| Spheron Blog](https://www.spheron.network/blog/gpu-cloud-pricing-comparison-2026/) |
+| 21 | 2026-09-16T01:09:37 | [Cloud GPU pricing comparison 2026: every provider's real rates](https://www.cloudzero.com/blog/cloud-gpu-pricing-comparison/) |
+| 8 | 2026-09-16T01:10:41 | [H100 GPU Cost In 2026: Buy, Rent, And Cloud Pricing Compared](https://www.cloudzero.com/blog/h100-gpu-cost/) |
+| 16 | 2026-09-16T01:11:19 | [Nvidia A100 vs H100: Specs & Cloud Pricing (2026)](https://getdeploying.com/gpus/nvidia-a100-vs-nvidia-h100) |
+| 14 | 2026-09-16T01:11:56 | [NVIDIA A100 Pricing (September 2026): Cheapest On-demand GPU ...](https://www.thundercompute.com/blog/nvidia-a100-pricing) |
+| 1 | 2026-09-16T01:13:18 | [NVIDIA H100 Pricing (September 2026): Cheapest Cloud GPU Rates ...](https://www.thundercompute.com/blog/nvidia-h100-pricing) |
+| 38 | 2026-09-16T01:17:14 | [GPU Cloud Pricing Comparison 2026: H100 From $2.01/hr \| Spheron Blog](https://www.spheron.network/blog/gpu-cloud-pricing-comparison-2026/) |
+| 5 | 2026-09-16T01:18:03 | [Cloud GPU pricing comparison 2026: every provider's real rates](https://www.cloudzero.com/blog/cloud-gpu-pricing-comparison/) |
+| 1 | 2026-09-16T01:18:56 | [H100 GPU Cost In 2026: Buy, Rent, And Cloud Pricing Compared](https://www.cloudzero.com/blog/h100-gpu-cost/) |
+| 1 | 2026-09-16T01:22:36 | [NVIDIA H100 Pricing (September 2026): Cheapest Cloud GPU Rates ...](https://www.thundercompute.com/blog/nvidia-h100-pricing) |
+| 14 | 2026-09-16T01:23:45 | [Cloud GPU Pricing - Compare 79 Providers and 4,600+ Prices (2026)](https://getdeploying.com/gpus) |
+| 5 | 2026-09-16T01:25:27 | [GPU Cloud Pricing Comparison 2026: H100 From $2.01/hr \| Spheron Blog](https://www.spheron.network/blog/gpu-cloud-pricing-comparison-2026/) |
+| 13 | 2026-09-16T01:26:49 | [Cloud GPU pricing comparison 2026: every provider's real rates](https://www.cloudzero.com/blog/cloud-gpu-pricing-comparison/) |
+| 2 | 2026-09-16T01:27:27 | [H100 GPU Cost In 2026: Buy, Rent, And Cloud Pricing Compared](https://www.cloudzero.com/blog/h100-gpu-cost/) |
