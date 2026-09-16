@@ -1,0 +1,14 @@
+episode	bucket	strategy	reward	rows_valid	rows_total	repairs	url
+1	table_heavy	heading_sections	0.9213	14	14	0	https://www.thundercompute.com/blog/nvidia-h100-pricing
+2	table_heavy	label_value_pairs	0.7534	3	3	0	https://jarvislabs.ai/blog/h100-price
+3	table_heavy	list_items	0.0	0	0	0	https://www.spheron.network/blog/gpu-cloud-pricing-comparison-2026/
+4	table_heavy	heading_sections	0.7092	1	1	0	https://getdeploying.com/gpus/nvidia-h100
+5	table_heavy	regex_fields	0.9184	28	28	0	https://www.cloudzero.com/blog/cloud-gpu-pricing-comparison/
+6	prose	regex_fields	0.7398	3	3	1	https://getdeploying.com/gpus
+7	table_heavy	table_parse	0.9235	7	7	0	https://www.cloudzero.com/blog/h100-gpu-cost/
+8	table_heavy	heading_sections	0.9592	20	20	0	https://www.thundercompute.com/blog/nvidia-a100-pricing
+9	table_heavy	regex_fields	0.8163	4	4	1	https://www.thundercompute.com/blog/oracle-cloud-oci-gpu-pricing
+10	table_heavy	regex_fields	0.0	0	0	0	https://getdeploying.com/gpus/nvidia-a100
+11	table_heavy	table_parse	0.9592	14	14	0	https://www.thundercompute.com/blog/nvidia-h100-pricing
+12	table_heavy	table_parse	0.7534	3	3	0	https://jarvislabs.ai/blog/h100-price
+13	prose	table_parse	0.0	0	0	0	https://getdeploying.com/gpus

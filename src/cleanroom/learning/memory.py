@@ -81,10 +81,56 @@ def _tokens(text: str) -> set[str]:
 class MemoryStore:
     """One-backed lesson store with a local fallback."""
 
+    #: Set once per process when One's memory store proves unusable, so the cost
+    #: of a broken backend is paid once instead of on every lesson.
+    _one_unavailable: bool = False
+    _one_error: str = ""
+
     def __init__(self, cfg: Settings | None = None, *, prefer_one: bool = True) -> None:
         self.cfg = cfg or settings
         self._one = shutil.which("one") if prefer_one else None
-        self.backend = "one" if (self._one and self.cfg.one_secret) else "local"
+        # `backend` is what will actually be *used*, not what is merely
+        # installed. Conflating the two is how a broken store looked healthy:
+        # a CLI on PATH plus a secret in the env reported "one" while every
+        # write was in fact failing over to local JSONL.
+        usable = bool(self._one and self.cfg.one_secret) and not MemoryStore._one_unavailable
+        self.backend = "one" if usable else "local"
+
+    def probe(self) -> bool | None:
+        """Is One's memory store actually usable? None when not configured.
+
+        `doctor` calls this so a broken store is reported rather than assumed
+        working. Uses `mem status`, which returns in well under a second, then a
+        real `mem search` -- status alone reports `configured: true` even when the
+        underlying Postgres cannot start.
+        """
+        if not (self._one and self.cfg.one_secret):
+            return None
+        if MemoryStore._one_unavailable:
+            return False
+        try:
+            done = _run([self._one, "--agent", "mem", "search", "probe", "--limit", "1"])
+        except (OSError, subprocess.SubprocessError) as exc:
+            self._disable_one(f"{type(exc).__name__}: {exc}")
+            return False
+        if done.returncode != 0:
+            self._disable_one((done.stderr or "non-zero exit").strip())
+            return False
+        return True
+
+    @classmethod
+    def _disable_one(cls, reason: str) -> None:
+        """Trip the breaker after One's memory store fails once.
+
+        One's `mem` commands bootstrap an embedded Postgres (`pgserve`) on first
+        use, and when that cannot bind its port the CLI gives up after ~30s and
+        exits non-zero. Retrying per lesson turns a broken backend into minutes
+        of dead wait per run -- measured at ~30s x 9 lessons on one run -- so the
+        first failure disables the path for the rest of the process.
+        """
+        if not cls._one_unavailable:
+            cls._one_unavailable = True
+            cls._one_error = reason[:300]
 
     # -- writes ------------------------------------------------------------
 
@@ -120,15 +166,19 @@ class MemoryStore:
         cmd += ["--weight", str(_one_weight(lesson.weight))]
         try:
             done = _run(cmd)
-            return done.returncode == 0
-        except (OSError, subprocess.SubprocessError):
+            if done.returncode == 0:
+                return True
+            self._disable_one((done.stderr or done.stdout or "non-zero exit").strip())
+            return False
+        except (OSError, subprocess.SubprocessError) as exc:
+            self._disable_one(f"{type(exc).__name__}: {exc}")
             return False
 
     # -- reads -------------------------------------------------------------
 
     def search(self, query: str, *, limit: int = 3) -> list[Lesson]:
         """Retrieve lessons relevant to the page we are about to attempt."""
-        if self.backend == "one":
+        if self.backend == "one" and not MemoryStore._one_unavailable:
             hits = self._search_one(query, limit=limit)
             if hits:
                 return hits
@@ -143,10 +193,16 @@ class MemoryStore:
         ]
         try:
             done = _run(cmd)
-            if done.returncode != 0 or not done.stdout.strip():
+            if done.returncode != 0:
+                self._disable_one((done.stderr or "non-zero exit").strip())
+                return []
+            if not done.stdout.strip():
                 return []
             payload = json.loads(done.stdout)
-        except (OSError, subprocess.SubprocessError, json.JSONDecodeError):
+        except (OSError, subprocess.SubprocessError) as exc:
+            self._disable_one(f"{type(exc).__name__}: {exc}")
+            return []
+        except json.JSONDecodeError:
             return []
 
         rows = payload if isinstance(payload, list) else (

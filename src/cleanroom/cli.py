@@ -85,8 +85,19 @@ def doctor(
         else target,
     )
 
+    # Probe rather than assume. A CLI on PATH plus a secret in the env is not
+    # evidence the store works: One's `mem` commands bootstrap an embedded
+    # Postgres, and when that fails they exit non-zero after ~30s while the
+    # label still said "one".
     memory = MemoryStore(settings)
-    row("memory backend", True, f"{memory.backend} ({memory.count()} lessons stored)")
+    probe = memory.probe() if hasattr(memory, "probe") else None
+    detail = f"{memory.backend} ({memory.count()} lessons stored)"
+    if probe is False:
+        detail = (
+            f"[yellow]local ({memory.count()} lessons) -- One's mem store "
+            f"unreachable: {MemoryStore._one_error[:70]}[/]"
+        )
+    row("memory backend", True if probe is not False else None, detail)
 
     try:
         from cleanroom.partners.one_client import OneClient

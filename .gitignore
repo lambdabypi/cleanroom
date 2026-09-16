@@ -1,6 +1,7 @@
-.env
+﻿.env
 state/
 *.png
+!runs/**/*.png
 __pycache__/
 *.py[cod]
 .venv/
