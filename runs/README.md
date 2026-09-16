@@ -29,6 +29,43 @@ point of the script.
 
 ## Snapshots
 
+### `2026-09-15-clean-30` — 30 uninterrupted episodes. Read this one first.
+
+The run to cite for anything about the *mechanism*, because it is internally
+consistent: 30 episodes logged, 30 scored, no code-writer failures, and a dataset
+whose sources match its provenance exactly.
+
+What it supports:
+
+- **The loop runs end to end, reliably.** 30/30 episodes produced a scored
+  result. 29/30 retrieved at least one prior lesson before acting.
+- **193 rows from 8 distinct sources, 193/193 carrying an http source URL**, and
+  an independent PII scan (regexes restated inside `verify_run.py`, not imported
+  from the project) comes back clean.
+- **Cost: `$0.0023` across 77 in-episode calls.** The ledger is clean this time —
+  a single `you.search` call at `$0.0050` sits outside the episodes.
+
+What it **contradicts** — and this is the more useful result:
+
+- **`table_parse` did not win on table-heavy pages.** It scored 0.370 over 2
+  pulls here, the *worst* arm, having been the best arm (0.899 over 4 pulls) in
+  the hackathon snapshot. The two runs disagree.
+- **The `lean` profile did not win either.** `standard` led table-heavy at 0.665
+  (n=4) with `lean` last at 0.462 (n=2), the reverse of the hackathon run.
+- **Aggregate reward fell**, 0.691 → 0.627 across the run.
+
+The honest reading: **neither per-arm preference replicates.** Both were drawn
+from 2–4 pulls, which is noise. The strategy bandit provably converges on a
+better arm in simulation (`tests/test_observability.py`), but **no live run in
+this repo has enough pulls per arm to demonstrate a learned preference over real
+pages.** Anything of the form "it learned that X beats Y on real pages" is not
+supported by this repository. Claims about the mechanism, the cost, the
+attribution and the PII screening are.
+
+One clear finding does emerge: **every `list_heavy` episode scored 0.000** — six
+episodes, four different strategies, no valid rows. That is a genuine failure
+mode for this schema, not a learning result.
+
 ### `2026-09-11-hackathon` — the hackathon run. Read the caveats.
 
 What it supports: `table_heavy → table_parse`, posterior 0.763 / observed 0.899
