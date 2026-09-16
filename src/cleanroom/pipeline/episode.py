@@ -54,6 +54,7 @@ from cleanroom.pipeline.dataset import (
     record_provenance,
 )
 from cleanroom.pipeline.schema import load_schema
+from cleanroom.pipeline.viability import filter_sources
 from cleanroom.pipeline.synthesize import (
     CreditsExhausted,
     Extractor,
@@ -177,18 +178,43 @@ class Learner:
         self.ledger = get_ledger(self.cfg)
         self.dataset = Dataset(self.schema, self.cfg)
         self._episode_offset = episode_count(self.cfg)
+        #: Pages dropped by the viability screen, as (url, reason).
+        self.skipped_sources: list[tuple[str, str]] = []
+        #: Set when a profile's document budget had to be clipped to the
+        #: provider's per-minute token ceiling, as (asked, allowed).
+        self._capped_budget: tuple[int, int] | None = None
 
     # -- source acquisition -----------------------------------------------
 
     def gather_sources(self, topic: str | None = None, *, count: int | None = None) -> list[Source]:
+        """Search, then drop pages that cannot satisfy the schema.
+
+        The viability screen is not an optimisation. A barren page returns zero
+        rows whichever strategy is chosen, and the resulting `0.0` is recorded
+        against a strategy that did nothing wrong -- six episodes on one such
+        page flattened a whole bucket's posteriors in a measured run.
+        """
         search_cfg = self.schema.get("search") or {}
         query = topic or search_cfg.get("topic") or self.schema.get("description") or self.schema["name"]
-        return self.you.find_sources(
+        found = self.you.find_sources(
             query,
             count=count or int(search_cfg.get("count") or 8),
             freshness=search_cfg.get("freshness"),
             include_domains=search_cfg.get("include_domains"),
         )
+
+        viable, skipped = filter_sources(found, self.schema)
+        self.skipped_sources = [(s.url, v.reason) for s, v in skipped]
+        for url, reason in self.skipped_sources:
+            # A lesson, not just a log line: if this host keeps coming back
+            # barren, that is worth remembering across runs.
+            self.memory.add(
+                f"{_host(url)} returned no extractable data for "
+                f"{self.schema.get('name')}: {reason}. Likely client-rendered.",
+                tags=(_host(url), "barren-source"),
+                weight=1.2,
+            )
+        return viable
 
     # -- tool-failure adaptation -------------------------------------------
 
@@ -212,7 +238,17 @@ class Learner:
         off until the request fits -- and records a lesson so the profile bandit
         sees the cost of an oversized budget on the next pass.
         """
-        budget = doc_chars
+        # Respect the provider's discovered per-minute token ceiling. The
+        # profile budgets are chosen for the *task*; the provider imposes a
+        # separate limit the profile bandit knows nothing about. On one measured
+        # tier the largest profile asked for more tokens than a whole minute's
+        # allowance, so it could never succeed -- and failed as an opaque 429
+        # rather than as "your budget is too big".
+        provider_cap = getattr(self.synth, "max_doc_chars", None)
+        budget = min(doc_chars, provider_cap) if provider_cap else doc_chars
+        if provider_cap and provider_cap < doc_chars:
+            self._capped_budget = (doc_chars, provider_cap)
+
         while True:
             try:
                 return self.synth.synthesize(

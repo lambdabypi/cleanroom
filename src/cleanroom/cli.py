@@ -283,6 +283,10 @@ def run(
     try:
         sources = learner.gather_sources(topic)
         console.print(f"You.com returned [bold]{len(sources)}[/] pages with usable content.")
+        # Say which pages were dropped and why. A screen that silently shrinks
+        # the candidate list is indistinguishable from a retrieval problem.
+        for url, reason in learner.skipped_sources:
+            console.print(f"  [yellow]skipped[/] {url[:58]} -- {reason}")
         if not sources:
             _fail("no usable pages; try a broader --topic")
 
@@ -307,6 +311,17 @@ def run(
             )
             outcomes.append(outcome)
             report = outcome.report or {}
+
+            # Say it once: a silently clipped budget looks like the profile
+            # bandit ignoring its own choice.
+            if learner._capped_budget and index == 0:  # noqa: SLF001
+                asked, allowed = learner._capped_budget  # noqa: SLF001
+                tpm = getattr(learner.synth, "tokens_per_minute", None)
+                console.print(
+                    f"  [yellow]note[/] provider allows {tpm} tokens/min, so the "
+                    f"document budget is capped at {allowed:,} chars "
+                    f"(profile asked for {asked:,})"
+                )
 
             if not outcome.counts_toward_learning:
                 # Distinguish a provider failure from a bad strategy, loudly.

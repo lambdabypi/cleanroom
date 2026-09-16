@@ -62,14 +62,26 @@ class ThompsonBandit:
         *,
         discount: float = 1.0,
         seed: int | None = None,
+        min_pulls: int = 1,
     ) -> None:
         if not arms:
             raise ValueError("bandit needs at least one arm")
         if not 0.0 < discount <= 1.0:
             raise ValueError("discount must be in (0, 1]")
+        if min_pulls < 0:
+            raise ValueError("min_pulls must be >= 0")
         self.arms = list(arms)
         self.buckets = list(buckets)
         self.discount = discount
+        #: Guarantee every arm is tried `min_pulls` times in a bucket before
+        #: Thompson sampling takes over. Asymptotically unnecessary, but at the
+        #: scale this actually runs it is the difference between learning and
+        #: not: measured on a 30-episode run, the `list_heavy` bucket saw six
+        #: episodes and TS never once sampled `list_items` -- the one arm named
+        #: for that page shape. Identical Beta(1,1) priors make the first draws
+        #: near-uniform, so with 5 arms and 6 pulls, missing an arm entirely is
+        #: unremarkable rather than unlucky.
+        self.min_pulls = min_pulls
         self._rng = random.Random(seed)
         self._stats: dict[str, dict[str, ArmStats]] = {
             bucket: {arm: ArmStats() for arm in self.arms} for bucket in self.buckets
@@ -79,10 +91,18 @@ class ThompsonBandit:
 
     def select(self, bucket: str, *, greedy: bool = False) -> str:
         """Pick an arm. Sampling from each posterior and taking the argmax *is* the
-        exploration mechanism -- there is no epsilon to tune."""
+        exploration mechanism -- there is no epsilon to tune.
+
+        The one exception is the cold start: any arm below `min_pulls` in this
+        bucket is taken first, in declaration order. `greedy=True` skips the
+        floor, because greedy means "show me what you have learned".
+        """
         stats = self._bucket(bucket)
         if greedy:
             return max(self.arms, key=lambda arm: stats[arm].posterior_mean)
+        for arm in self.arms:
+            if stats[arm].pulls < self.min_pulls:
+                return arm
         draws = {arm: self._rng.betavariate(s.alpha, s.beta) for arm, s in stats.items()}
         return max(draws, key=draws.__getitem__)
 
@@ -142,6 +162,7 @@ class ThompsonBandit:
             "arms": self.arms,
             "buckets": self.buckets,
             "discount": self.discount,
+            "min_pulls": self.min_pulls,
             "stats": {
                 bucket: {arm: asdict(s) for arm, s in arms.items()}
                 for bucket, arms in self._stats.items()
@@ -155,6 +176,7 @@ class ThompsonBandit:
             buckets=blob.get("buckets") or [],
             discount=float(blob.get("discount", 1.0)),
             seed=seed,
+            min_pulls=int(blob.get("min_pulls", 1)),
         )
         for bucket, arms in (blob.get("stats") or {}).items():
             target = bandit._bucket(bucket)

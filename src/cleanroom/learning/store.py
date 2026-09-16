@@ -1,4 +1,4 @@
-"""Durable state: the bandit posterior and the episode log.
+﻿"""Durable state: the bandit posterior and the episode log.
 
 Learning that does not survive a process restart is not learning, it is a long
 function call. Writes go through a temp-file rename so a crash mid-episode cannot
@@ -48,7 +48,8 @@ def load_bandit(cfg: Settings | None = None, *, seed: int | None = None) -> Thom
             # Corrupt state is recoverable; keep the bad file for inspection so a
             # flat learning curve during the demo has an explanation on disk.
             path.replace(path.with_suffix(".corrupt.json"))
-    return ThompsonBandit(arms=STRATEGY_IDS, buckets=BUCKETS, discount=0.98, seed=seed)
+    return ThompsonBandit(arms=STRATEGY_IDS, buckets=BUCKETS, discount=0.98,
+                           seed=seed, min_pulls=1)
 
 
 def save_bandit(bandit: ThompsonBandit, cfg: Settings | None = None) -> Path:
@@ -163,3 +164,4 @@ def episode_count(cfg: Settings | None = None) -> int:
 def load_episodes(cfg: Settings | None = None) -> list[dict[str, Any]]:
     cfg = cfg or settings
     return list(read_jsonl(cfg.episodes_path))
+

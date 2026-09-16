@@ -1,4 +1,4 @@
-"""The second learning dimension: how *expensively* to solve each page.
+﻿"""The second learning dimension: how *expensively* to solve each page.
 
 The strategy bandit learns which extraction approach works. It has no opinion on
 cost, so left alone it will happily spend 45,000 characters of context and two
@@ -96,7 +96,7 @@ class ProfileBandit:
 
     def __init__(self, bandit: ThompsonBandit | None = None, *, seed: int | None = None) -> None:
         self.bandit = bandit or ThompsonBandit(
-            arms=PROFILE_IDS, buckets=BUCKETS, discount=0.98, seed=seed
+            arms=PROFILE_IDS, buckets=BUCKETS, discount=0.98, seed=seed, min_pulls=1
         )
 
     def select(self, bucket: str, *, greedy: bool = False) -> Profile:
@@ -134,3 +134,4 @@ class ProfileBandit:
     @classmethod
     def restore(cls, blob: dict, *, seed: int | None = None) -> "ProfileBandit":
         return cls(ThompsonBandit.restore(blob, seed=seed))
+

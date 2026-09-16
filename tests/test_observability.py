@@ -283,19 +283,25 @@ def test_profile_bandit_pays_up_when_the_cheap_profile_fails():
     assert bandit.best("prose").id == "thorough"
 
 
-def _run_coupled_learners(*, gated: bool, episodes: int = 160, seed: int = 21) -> str:
+def _run_coupled_learners(
+    *, gated: bool, episodes: int = 160, seed: int = 21, floor: int = 1
+) -> str:
     """Two bandits learning at once on a page shape that genuinely needs context.
 
     Returns the profile the cost bandit settles on. `gated` applies the
     on-policy rule: only learn about spend from episodes that used the
-    currently-best-known strategy.
+    currently-best-known strategy. `floor` is the cold-start minimum-pulls
+    setting, exposed so the two interventions can be measured apart.
     """
     from cleanroom.learning.bandit import ThompsonBandit
     from cleanroom.learning.strategies import BUCKETS, STRATEGY_IDS
 
     strategies = ThompsonBandit(arms=STRATEGY_IDS, buckets=BUCKETS,
-                                discount=0.98, seed=seed)
-    profiles = ProfileBandit(seed=seed)
+                                discount=0.98, seed=seed, min_pulls=floor)
+    profiles = ProfileBandit(
+        ThompsonBandit(arms=PROFILE_IDS, buckets=BUCKETS, discount=0.98,
+                       seed=seed, min_pulls=floor)
+    )
 
     right_strategy = "regex_fields"
     # Prose: the cheap profile is genuinely bad, the expensive one genuinely good.
@@ -318,43 +324,52 @@ def _run_coupled_learners(*, gated: bool, episodes: int = 160, seed: int = 21) -
     return profiles.best("prose").id
 
 
-def _correct_fraction(*, gated: bool, episodes: int, seeds: int = 10) -> int:
+def _correct_fraction(*, gated: bool, episodes: int, seeds: int = 20,
+                      floor: int = 1) -> int:
     return sum(
         1
         for seed in range(seeds)
-        if _run_coupled_learners(gated=gated, episodes=episodes, seed=seed) == "thorough"
+        if _run_coupled_learners(gated=gated, episodes=episodes, seed=seed,
+                                 floor=floor) == "thorough"
     )
 
 
-def test_on_policy_gate_helps_at_demo_scale():
-    """Why the cost dimension only learns from on-policy episodes.
+def test_cold_start_floor_and_on_policy_gate_compose():
+    """Two independent fixes for the same failure, measured apart.
 
     Two bandits learning at once confound each other: while the strategy
-    dimension is exploring, every profile scores badly, so the cheapest wins on
-    cost alone and the posterior can commit to the wrong profile.
+    dimension explores, every profile scores badly, so the cheapest wins on cost
+    alone and the posterior can commit to the wrong profile. Separately, with
+    identical Beta(1,1) priors and five arms, Thompson sampling can simply never
+    try an arm in a short run.
 
-    Measured over 10 seeds, the effect is an *early-commitment* one -- it matters
-    at the scale a hackathon demo actually runs at and washes out asymptotically:
+    Measured over 20 seeds (correct answer = `thorough`):
 
-        episodes   ungated   gated
-              20     6/10     8/10
-              30     7/10    10/10
-              40     9/10    10/10
-             100    10/10    10/10
+        episodes | no floor, ungated | no floor, gated | floor, ungated | floor, gated
+              15 |             11/20 |           15/20 |          17/20 |        20/20
+              20 |             15/20 |           17/20 |          18/20 |        20/20
+              30 |             15/20 |           19/20 |          19/20 |        20/20
+              50 |             18/20 |           20/20 |          20/20 |        20/20
+             100 |             19/20 |           20/20 |          20/20 |        20/20
 
-    So this is a convergence-speed guarantee, not a correctness one. Asserted at
-    30 episodes, where the gap is widest.
+    The floor is the larger single lever at short horizons; the gate still adds
+    on top of it. Asserted at 15 episodes, where the spread is widest.
     """
-    gated = _correct_fraction(gated=True, episodes=30)
-    ungated = _correct_fraction(gated=False, episodes=30)
-    assert gated >= 9, f"gated should be near-perfect at 30 episodes, got {gated}/10"
-    assert gated > ungated, f"gate should beat ungated: {gated}/10 vs {ungated}/10"
+    both = _correct_fraction(gated=True, episodes=15, floor=1)
+    floor_only = _correct_fraction(gated=False, episodes=15, floor=1)
+    gate_only = _correct_fraction(gated=True, episodes=15, floor=0)
+    neither = _correct_fraction(gated=False, episodes=15, floor=0)
+
+    assert both >= 19, f"floor+gate should be near-perfect at 15 episodes, got {both}/20"
+    assert both >= floor_only, f"gate should not hurt: {both} vs {floor_only}"
+    assert floor_only > neither, f"floor should help: {floor_only} vs {neither}"
+    assert gate_only > neither, f"gate should help: {gate_only} vs {neither}"
 
 
-def test_both_approaches_converge_given_enough_episodes():
-    """The gate buys speed, not asymptotic correctness -- state that honestly."""
-    assert _correct_fraction(gated=False, episodes=160) == 10
-    assert _correct_fraction(gated=True, episodes=160) == 10
+def test_everything_converges_given_enough_episodes():
+    """Both fixes buy speed, not asymptotic correctness -- state that honestly."""
+    assert _correct_fraction(gated=False, episodes=160, floor=0) >= 19
+    assert _correct_fraction(gated=True, episodes=160, floor=1) == 20
 
 
 def test_profiles_are_ordered_by_increasing_budget():

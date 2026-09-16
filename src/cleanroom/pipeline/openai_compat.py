@@ -44,9 +44,19 @@ from cleanroom.pipeline.synthesize import (
 
 REQUEST_TIMEOUT = 180
 
-#: 429 retries. Free tiers are per-minute limited, so a short wait usually clears.
-MAX_RATE_LIMIT_RETRIES = 3
+#: 429 retries. Free tiers are limited per *minute*, and the binding constraint
+#: is usually tokens rather than requests -- so a 45k-character prompt can consume
+#: a whole window on its own and the next few requests fail no matter how fast
+#: they are. Three attempts over ~60s was not enough: a measured 30-episode run
+#: lost 3 episodes to exhausted retries. Five attempts with a growing delay
+#: covers a full 60s window plus slack, and a retry is always cheaper than
+#: discarding the episode's LLM work.
+MAX_RATE_LIMIT_RETRIES = 5
 DEFAULT_BACKOFF_S = 20.0
+
+#: Never wait longer than this in total for one completion. Past it, failing the
+#: episode is better than stalling a run indefinitely.
+MAX_TOTAL_BACKOFF_S = 240.0
 
 
 def _retry_after(resp: requests.Response) -> float:
@@ -88,6 +98,44 @@ class OpenAICompatSynthesizer:
         self.session.headers.update(headers)
         self.last_input_tokens = 0
         self.last_output_tokens = 0
+        #: Provider's tokens-per-minute ceiling, learned from response headers.
+        self.tokens_per_minute: int | None = None
+
+    #: Share of a one-minute token budget one request may use for the document.
+    #: The rest covers the system prompt (~900 tokens) and the completion
+    #: (~1500), and leaves room for roughly two episodes per minute rather than
+    #: one request that consumes the whole window.
+    DOC_SHARE_OF_TPM = 0.35
+
+    @property
+    def max_doc_chars(self) -> int | None:
+        """Largest document budget that fits this provider's per-minute limit.
+
+        Measured on Groq's free tier: `x-ratelimit-limit-tokens: 8000` *per
+        minute*. The configured profiles ask for up to 45,000 characters
+        (~11,250 tokens), which exceeds the entire minute budget in a single
+        request -- so the `thorough` profile could never succeed there, and
+        `standard` (~4,500 tokens) capped throughput at one episode per minute.
+        Both showed up as unexplained 429s and 413s rather than as a
+        configuration problem.
+
+        Returns None until a response has been seen, since the limit is
+        discovered rather than assumed.
+        """
+        if not self.tokens_per_minute:
+            return None
+        return int(self.tokens_per_minute * self.DOC_SHARE_OF_TPM * 4)
+
+    def _note_rate_limits(self, resp: requests.Response) -> None:
+        raw = (resp.headers.get("x-ratelimit-limit-tokens") or "").strip()
+        if not raw:
+            return
+        try:
+            limit = int(float(raw))
+        except ValueError:
+            return
+        if limit > 0 and limit != self.tokens_per_minute:
+            self.tokens_per_minute = limit
 
     @property
     def endpoint(self) -> str:
@@ -144,6 +192,7 @@ class OpenAICompatSynthesizer:
         not a failure -- treating it as one threw away 6 of 8 episodes in testing.
         """
         last: RateLimited | None = None
+        spent = 0.0
         for attempt in range(MAX_RATE_LIMIT_RETRIES):
             try:
                 return self._post(system, user)
@@ -151,12 +200,20 @@ class OpenAICompatSynthesizer:
                 last = exc
                 if attempt == MAX_RATE_LIMIT_RETRIES - 1:
                     break
-                delay = exc.retry_after * (attempt + 1)
-                print(f"    [rate limited, waiting {delay:.0f}s]", flush=True)
+                delay = min(exc.retry_after * (attempt + 1),
+                            max(0.0, MAX_TOTAL_BACKOFF_S - spent))
+                if delay <= 0:
+                    break
+                spent += delay
+                print(
+                    f"    [rate limited, waiting {delay:.0f}s "
+                    f"(attempt {attempt + 1}/{MAX_RATE_LIMIT_RETRIES})]",
+                    flush=True,
+                )
                 time.sleep(delay)
         raise SynthesisError(
-            f"{last} after {MAX_RATE_LIMIT_RETRIES} attempts -- lower -n, raise "
-            "--pause, or use a smaller model"
+            f"{last} after {MAX_RATE_LIMIT_RETRIES} attempts and {spent:.0f}s of "
+            "backoff -- raise --pause, lower the profile budget, or use a smaller model"
         )
 
     def _post(self, system: str, user: str) -> tuple[str, dict]:
@@ -175,6 +232,10 @@ class OpenAICompatSynthesizer:
             raise SynthesisError(f"{self.cfg.llm_model} timed out after {REQUEST_TIMEOUT}s") from exc
         except requests.RequestException as exc:
             raise SynthesisError(f"could not reach {self.endpoint}: {exc}") from exc
+
+        # Learn the provider's limits from every response, including failures --
+        # a 429 carries the headers too, and that is exactly when we need them.
+        self._note_rate_limits(resp)
 
         if resp.status_code in (401, 403):
             raise SynthesisError(
