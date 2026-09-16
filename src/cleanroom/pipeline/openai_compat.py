@@ -24,6 +24,7 @@ byte-identical, or a repair turn cannot discover anything new.
 from __future__ import annotations
 
 import time
+from collections import deque
 
 import requests
 
@@ -57,6 +58,57 @@ DEFAULT_BACKOFF_S = 20.0
 #: Never wait longer than this in total for one completion. Past it, failing the
 #: episode is better than stalling a run indefinitely.
 MAX_TOTAL_BACKOFF_S = 240.0
+
+
+class TokenPacer:
+    """Keeps a rolling one-minute token spend under the provider's ceiling.
+
+    Retrying after a 429 wastes the round trip; not provoking one is strictly
+    better. The numbers make the case -- measured on Groq's free tier with the
+    `lean` profile:
+
+        per-minute allowance      8,000 tokens
+        one synthesis call        5,260 tokens  (3,432 prompt + 1,828 completion)
+        => sustainable rate       1.5 calls/min, i.e. 39s apart
+
+    A `--pause 6` flag meant attempting roughly four calls a minute, four times
+    over budget, so 429s were not bad luck but arithmetic. The pacer replaces
+    that guess: it records what each call actually cost, and before the next one
+    sleeps just long enough for the window to carry it.
+
+    `safety` leaves headroom because the estimate for the *next* call is exactly
+    that -- an estimate -- and the provider's window boundary is not observable.
+    """
+
+    def __init__(self, safety: float = 0.85) -> None:
+        self._events: deque[tuple[float, int]] = deque()
+        self.safety = safety
+        self.total_waited = 0.0
+
+    def _spent_in_window(self, now: float) -> int:
+        while self._events and now - self._events[0][0] >= 60.0:
+            self._events.popleft()
+        return sum(tokens for _, tokens in self._events)
+
+    def note(self, tokens: int) -> None:
+        self._events.append((time.monotonic(), max(0, tokens)))
+
+    def delay_for(self, estimated_tokens: int, limit: int | None) -> float:
+        """Seconds to wait before spending `estimated_tokens`."""
+        if not limit or limit <= 0:
+            return 0.0
+        budget = limit * self.safety
+        now = time.monotonic()
+        spent = self._spent_in_window(now)
+        if spent + estimated_tokens <= budget:
+            return 0.0
+        # Wait for the oldest events to age out of the window, one at a time,
+        # until the projected spend fits.
+        for timestamp, tokens in list(self._events):
+            spent -= tokens
+            if spent + estimated_tokens <= budget:
+                return max(0.0, 60.0 - (now - timestamp)) + 0.5
+        return 60.0
 
 
 def _retry_after(resp: requests.Response) -> float:
@@ -100,6 +152,12 @@ class OpenAICompatSynthesizer:
         self.last_output_tokens = 0
         #: Provider's tokens-per-minute ceiling, learned from response headers.
         self.tokens_per_minute: int | None = None
+        self.pacer = TokenPacer()
+        #: Rolling mean completion size, so the next call's cost can be
+        #: estimated rather than guessed. Seeded from a measured run: gpt-oss
+        #: emits reasoning alongside the module, so completions run ~1,800
+        #: tokens, not the few hundred the output alone would suggest.
+        self._completion_estimate = 1800.0
 
     #: Share of a one-minute token budget one request may use for the document.
     #: The rest covers the system prompt (~900 tokens) and the completion
@@ -166,6 +224,10 @@ class OpenAICompatSynthesizer:
             # fallback so an un-instrumented provider still yields an estimate.
             in_tokens = int(usage.get("prompt_tokens") or 0) or estimate_tokens(system + user)
             out_tokens = int(usage.get("completion_tokens") or 0) or estimate_tokens(text)
+            # Feed the real cost back so the next call is paced on measurement
+            # rather than the seed estimate.
+            self.pacer.note(in_tokens + out_tokens)
+            self._completion_estimate = 0.7 * self._completion_estimate + 0.3 * out_tokens
             span.charge(
                 llm_cost(
                     model=self.cfg.llm_model,
@@ -191,6 +253,21 @@ class OpenAICompatSynthesizer:
         Free tiers are requests-per-minute limited, so a rate limit is a wait,
         not a failure -- treating it as one threw away 6 of 8 episodes in testing.
         """
+        from cleanroom.observability.pricing import estimate_tokens
+
+        # Wait our turn before spending, rather than discovering the ceiling by
+        # bouncing off it. Only possible once a response has revealed the limit.
+        projected = estimate_tokens(system + user) + int(self._completion_estimate)
+        wait = self.pacer.delay_for(projected, self.tokens_per_minute)
+        if wait > 0:
+            self.pacer.total_waited += wait
+            print(
+                f"    [pacing {wait:.0f}s -- next call needs ~{projected:,} of "
+                f"{self.tokens_per_minute:,} tokens/min]",
+                flush=True,
+            )
+            time.sleep(wait)
+
         last: RateLimited | None = None
         spent = 0.0
         for attempt in range(MAX_RATE_LIMIT_RETRIES):

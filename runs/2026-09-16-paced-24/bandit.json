@@ -1,0 +1,147 @@
+{
+  "arms": [
+    "table_parse",
+    "heading_sections",
+    "regex_fields",
+    "label_value_pairs",
+    "list_items"
+  ],
+  "buckets": [
+    "table_heavy",
+    "list_heavy",
+    "sectioned",
+    "prose"
+  ],
+  "discount": 0.98,
+  "min_pulls": 1,
+  "stats": {
+    "list_heavy": {
+      "heading_sections": {
+        "alpha": 1.0,
+        "beta": 1.0,
+        "pulls": 0,
+        "reward_sum": 0.0
+      },
+      "label_value_pairs": {
+        "alpha": 1.0,
+        "beta": 1.0,
+        "pulls": 0,
+        "reward_sum": 0.0
+      },
+      "list_items": {
+        "alpha": 1.0,
+        "beta": 1.0,
+        "pulls": 0,
+        "reward_sum": 0.0
+      },
+      "regex_fields": {
+        "alpha": 1.0,
+        "beta": 1.0,
+        "pulls": 0,
+        "reward_sum": 0.0
+      },
+      "table_parse": {
+        "alpha": 1.0,
+        "beta": 1.0,
+        "pulls": 0,
+        "reward_sum": 0.0
+      }
+    },
+    "prose": {
+      "heading_sections": {
+        "alpha": 1.0,
+        "beta": 1.0,
+        "pulls": 0,
+        "reward_sum": 0.0
+      },
+      "label_value_pairs": {
+        "alpha": 1.0,
+        "beta": 1.0,
+        "pulls": 0,
+        "reward_sum": 0.0
+      },
+      "list_items": {
+        "alpha": 1.0,
+        "beta": 1.0,
+        "pulls": 0,
+        "reward_sum": 0.0
+      },
+      "regex_fields": {
+        "alpha": 1.0,
+        "beta": 1.0,
+        "pulls": 0,
+        "reward_sum": 0.0
+      },
+      "table_parse": {
+        "alpha": 1.0,
+        "beta": 1.0,
+        "pulls": 0,
+        "reward_sum": 0.0
+      }
+    },
+    "sectioned": {
+      "heading_sections": {
+        "alpha": 1.0,
+        "beta": 1.0,
+        "pulls": 0,
+        "reward_sum": 0.0
+      },
+      "label_value_pairs": {
+        "alpha": 1.0,
+        "beta": 1.0,
+        "pulls": 0,
+        "reward_sum": 0.0
+      },
+      "list_items": {
+        "alpha": 1.0,
+        "beta": 1.0,
+        "pulls": 0,
+        "reward_sum": 0.0
+      },
+      "regex_fields": {
+        "alpha": 1.0,
+        "beta": 1.0,
+        "pulls": 0,
+        "reward_sum": 0.0
+      },
+      "table_parse": {
+        "alpha": 1.0,
+        "beta": 1.0,
+        "pulls": 0,
+        "reward_sum": 0.0
+      }
+    },
+    "table_heavy": {
+      "heading_sections": {
+        "alpha": 8.733526319326318,
+        "beta": 1.5790855741661878,
+        "pulls": 9,
+        "reward_sum": 8.373299319727892
+      },
+      "label_value_pairs": {
+        "alpha": 1.0,
+        "beta": 2.0,
+        "pulls": 1,
+        "reward_sum": 0.0
+      },
+      "list_items": {
+        "alpha": 4.783134276544218,
+        "beta": 2.924746680255782,
+        "pulls": 6,
+        "reward_sum": 4.006462585034014
+      },
+      "regex_fields": {
+        "alpha": 5.969237126944477,
+        "beta": 1.7386438298555222,
+        "pulls": 6,
+        "reward_sum": 5.2197926789763525
+      },
+      "table_parse": {
+        "alpha": 1.7534013605442178,
+        "beta": 2.226598639455782,
+        "pulls": 2,
+        "reward_sum": 0.7534013605442177
+      }
+    }
+  }
+}

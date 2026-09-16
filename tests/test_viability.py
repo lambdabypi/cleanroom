@@ -1,4 +1,4 @@
-"""Tests for the source viability screen and the cold-start exploration floor.
+﻿"""Tests for the source viability screen and the cold-start exploration floor.
 
 Both exist because of one measured failure: a 30-episode run spent six episodes
 on `getdeploying.com/gpus/nvidia-h100`, which returns 1,455 characters of
@@ -11,6 +11,7 @@ flattening the whole `list_heavy` bucket. Thompson sampling also never sampled
 
 from __future__ import annotations
 
+import time
 from dataclasses import dataclass
 
 from cleanroom.learning.bandit import ThompsonBandit
@@ -250,6 +251,77 @@ def test_a_generous_limit_clips_nothing():
     assert synth.max_doc_chars > PROFILES["thorough"].doc_chars
 
 
+def test_backoff_path_executes_end_to_end():
+    """Guards the integration, not just the pacer in isolation.
+
+    `TokenPacer` was unit-tested and green while `_post_with_backoff` crashed on
+    the first real call with `NameError: estimate_tokens` -- the helper was
+    imported inside a different method. Testing the collaborator alone could not
+    catch that; this drives the actual method.
+    """
+    synth = _synth()
+    synth.tokens_per_minute = 8000
+    calls = []
+
+    def fake_post(system, user):
+        calls.append((system, user))
+        return "```python\ndef extract(d):\n    return []\n```", {
+            "prompt_tokens": 100, "completion_tokens": 50,
+        }
+
+    synth._post = fake_post
+    text, usage = synth._post_with_backoff("sys", "user")
+    assert calls, "the underlying post was never reached"
+    assert "def extract" in text
+    assert usage["prompt_tokens"] == 100
+
+
+def test_pacer_allows_calls_that_fit_the_window():
+    from cleanroom.pipeline.openai_compat import TokenPacer
+
+    pacer = TokenPacer()
+    assert pacer.delay_for(1000, 8000) == 0.0
+    pacer.note(1000)
+    assert pacer.delay_for(1000, 8000) == 0.0
+
+
+def test_pacer_waits_once_the_window_is_full():
+    """5,260-token calls against an 8,000/min ceiling: the second must wait."""
+    from cleanroom.pipeline.openai_compat import TokenPacer
+
+    pacer = TokenPacer()
+    pacer.note(5260)
+    delay = pacer.delay_for(5260, 8000)
+    assert delay > 0, "a second full-size call should not be allowed immediately"
+    assert delay <= 61
+
+
+def test_pacer_is_inert_without_a_known_limit():
+    """The ceiling is discovered; before that, never stall the run."""
+    from cleanroom.pipeline.openai_compat import TokenPacer
+
+    assert TokenPacer().delay_for(999_999, None) == 0.0
+    assert TokenPacer().delay_for(999_999, 0) == 0.0
+
+
+def test_pacer_forgets_spend_older_than_a_minute():
+    from cleanroom.pipeline.openai_compat import TokenPacer
+
+    pacer = TokenPacer()
+    # Backdate an event beyond the window.
+    pacer._events.append((time.monotonic() - 61.0, 8000))
+    assert pacer.delay_for(5000, 8000) == 0.0
+
+
+def test_pacer_safety_margin_reserves_headroom():
+    """The next call's cost is an estimate, so do not plan to the last token."""
+    from cleanroom.pipeline.openai_compat import TokenPacer
+
+    pacer = TokenPacer(safety=0.85)
+    pacer.note(7000)
+    assert pacer.delay_for(500, 8000) > 0  # 7500 > 6800 budget
+
+
 def test_missing_or_junk_headers_leave_the_cap_unset():
     synth = _synth()
     synth._note_rate_limits(_FakeResponse({}))
@@ -258,3 +330,4 @@ def test_missing_or_junk_headers_leave_the_cap_unset():
     assert synth.tokens_per_minute is None
     synth._note_rate_limits(_FakeResponse({"x-ratelimit-limit-tokens": "0"}))
     assert synth.tokens_per_minute is None
+

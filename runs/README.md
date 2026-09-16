@@ -29,7 +29,43 @@ point of the script.
 
 ## Snapshots
 
-### `2026-09-15-clean-30` — 30 uninterrupted episodes. Read this one first.
+### `2026-09-16-paced-24` — the current best. Cite this one.
+
+24 episodes with the viability screen, the cold-start exploration floor and the
+token pacer all active. It is the first run where the learning behaviour is
+measurable rather than merely plausible.
+
+| | `clean-30` (before) | `paced-24` (after) |
+|---|---|---|
+| episodes scored | 30/30 | 24/24 |
+| lost to provider failures | 3 earlier attempts | **0** |
+| rate-limit (429) errors | many | **0** |
+| reward, first third → last third | 0.691 → 0.627 | **0.644 → 0.891** |
+| pull↔reward rank correlation | +0.21 (weak) | **+0.97** |
+| best arm sample size | n=3 | **n=9** |
+
+The rank correlation is the honest headline. *Which* strategy wins varies between
+runs — `table_parse`, then `list_items`, then `heading_sections` — because on
+table-heavy pages several strategies score closely (0.93 / 0.87 / 0.67). What
+replicates is that **effort follows reward**: pulls were 9, 6, 6, 2, 1 against
+observed rewards of 0.93, 0.87, 0.67, 0.38, 0.00. The bandit reliably starves the
+bad arms rather than identifying a unique champion, and `verify_run.py` computes
+that correlation so the claim is checkable rather than asserted.
+
+Also: 179 rows from 8 sources, 179/179 attributed, independent PII scan clean,
+24/24 episodes retrieved a prior lesson, and `$0.0006` of in-episode spend.
+
+Why the earlier run looked worse: the two barren `getdeploying.com` subpages were
+being scored rather than skipped, which created a phantom `list_heavy` bucket in
+which every strategy scored 0.000. Removing them concentrated the episodes where
+data actually existed. The fixes and the improvement are causally linked, not
+coincident.
+
+Still not supported here: the cost/profile bandit. With 10 on-policy episodes
+across three arms it remains too thin to claim a learned spend preference, and
+the verifier still says so.
+
+### `2026-09-15-clean-30` — 30 uninterrupted episodes, before the fixes.
 
 The run to cite for anything about the *mechanism*, because it is internally
 consistent: 30 episodes logged, 30 scored, no code-writer failures, and a dataset

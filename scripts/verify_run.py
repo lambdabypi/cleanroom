@@ -53,6 +53,35 @@ def posterior(stat: dict) -> float:
     return stat["alpha"] / (stat["alpha"] + stat["beta"])
 
 
+def _ranks(values: list[float]) -> list[float]:
+    """Ascending ranks, averaging ties."""
+    order = sorted(range(len(values)), key=lambda i: values[i])
+    ranks = [0.0] * len(values)
+    i = 0
+    while i < len(order):
+        j = i
+        while j + 1 < len(order) and values[order[j + 1]] == values[order[i]]:
+            j += 1
+        shared = (i + j) / 2.0 + 1.0
+        for k in range(i, j + 1):
+            ranks[order[k]] = shared
+        i = j + 1
+    return ranks
+
+
+def _spearman(xs: list[float], ys: list[float]) -> float:
+    """Rank correlation, stdlib only. Returns 0.0 when undefined."""
+    if len(xs) < 3:
+        return 0.0
+    rx, ry = _ranks(xs), _ranks(ys)
+    n = len(xs)
+    mx, my = sum(rx) / n, sum(ry) / n
+    num = sum((a - mx) * (b - my) for a, b in zip(rx, ry))
+    dx = sum((a - mx) ** 2 for a in rx) ** 0.5
+    dy = sum((b - my) ** 2 for b in ry) ** 0.5
+    return num / (dx * dy) if dx and dy else 0.0
+
+
 def section(title: str) -> None:
     print(f"\n{title}\n" + "-" * len(title))
 
@@ -122,6 +151,18 @@ def main() -> int:
         if pulled[best]["pulls"] < 3:
             print(f"    CAUTION: best arm has only {pulled[best]['pulls']} pull(s); "
                   "not a supported claim.")
+
+        # Which arm "wins" varies run to run when several are close. The
+        # behaviour that should hold regardless is that effort follows reward:
+        # more pulls for arms that score better. That is checkable.
+        if len(pulled) >= 3:
+            rho = _spearman(
+                [s["pulls"] for s in pulled.values()],
+                [s["reward_sum"] / s["pulls"] for s in pulled.values()],
+            )
+            verdict = ("effort follows reward" if rho >= 0.6
+                       else "WEAK -- effort does not track reward")
+            print(f"    pull/reward rank correlation: {rho:+.2f}  ({verdict})")
     print(f"  discount in use        {bandit.get('discount')}")
 
     # -- profile bandit ---------------------------------------------------
