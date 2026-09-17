@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+﻿#!/usr/bin/env python3
 """Recompute every headline claim from a committed run snapshot.
 
     python scripts/verify_run.py                 # newest snapshot under runs/
@@ -16,6 +16,7 @@ support a claim, it says so rather than staying quiet.
 from __future__ import annotations
 
 import csv
+import itertools
 import json
 import pathlib
 import re
@@ -80,6 +81,44 @@ def _spearman(xs: list[float], ys: list[float]) -> float:
     dx = sum((a - mx) ** 2 for a in rx) ** 0.5
     dy = sum((b - my) ** 2 for b in ry) ** 0.5
     return num / (dx * dy) if dx and dy else 0.0
+
+
+def _perm_p(xs: list[float], ys: list[float]) -> tuple[float, int]:
+    """Exact two-sided permutation p-value for Spearman.
+
+    Exact rather than asymptotic because the arm counts here are tiny (3-5), and
+    the usual t-approximation is unreliable at that size. `itertools` over 5!
+    permutations is instant; above 8 arms this bails out to save time.
+    """
+    n = len(xs)
+    if n < 3 or n > 8:
+        return 1.0, 0
+    observed = abs(_spearman(xs, ys))
+    perms = list(itertools.permutations(range(n)))
+    hits = sum(1 for p in perms
+               if abs(_spearman(xs, [ys[i] for i in p])) >= observed - 1e-12)
+    return hits / len(perms), len(perms)
+
+
+def _fragility(xs: list[float], ys: list[float]) -> float | None:
+    """Worst p-value reachable by swapping one adjacent pair in the reward order.
+
+    Answers "how close is this to not being significant?", which a bare rho
+    cannot. Returns None when the sample is outside the exact-test range.
+    """
+    n = len(ys)
+    if n < 3 or n > 8:
+        return None
+    order = sorted(range(n), key=lambda i: -ys[i])
+    worst = 0.0
+    for k in range(n - 1):
+        swapped = list(order)
+        swapped[k], swapped[k + 1] = swapped[k + 1], swapped[k]
+        synthetic = [0.0] * n
+        for position, index in enumerate(swapped):
+            synthetic[index] = n - position
+        worst = max(worst, _perm_p(xs, synthetic)[0])
+    return worst
 
 
 def section(title: str) -> None:
@@ -156,13 +195,28 @@ def main() -> int:
         # behaviour that should hold regardless is that effort follows reward:
         # more pulls for arms that score better. That is checkable.
         if len(pulled) >= 3:
-            rho = _spearman(
-                [s["pulls"] for s in pulled.values()],
-                [s["reward_sum"] / s["pulls"] for s in pulled.values()],
-            )
-            verdict = ("effort follows reward" if rho >= 0.6
-                       else "WEAK -- effort does not track reward")
-            print(f"    pull/reward rank correlation: {rho:+.2f}  ({verdict})")
+            xs = [s["pulls"] for s in pulled.values()]
+            ys = [s["reward_sum"] / s["pulls"] for s in pulled.values()]
+            rho = _spearman(xs, ys)
+            p, _ = _perm_p(xs, ys)
+            # Verdict keys off both rho and p. Judging by rho alone labelled a
+            # +0.74 at p=0.20 as "effort follows reward", which is exactly the
+            # overstatement this script exists to prevent.
+            if rho >= 0.6 and p <= 0.05:
+                verdict = "effort follows reward"
+            elif rho >= 0.6:
+                verdict = "SUGGESTIVE -- not significant at this sample size"
+            else:
+                verdict = "WEAK -- effort does not track reward"
+            print(f"    pull/reward rank correlation: {rho:+.2f}  "
+                  f"(n={len(xs)} arms, exact p={p:.4f})  {verdict}")
+            # A high rho over five arms is worth very little if one swapped pair
+            # destroys it. Report that rather than leaving the reader to assume
+            # robustness from the headline number.
+            worst = _fragility(xs, ys)
+            if worst is not None and p <= 0.05 < worst:
+                print(f"    CAUTION: one adjacent rank swap takes p to {worst:.4f}; "
+                      "this is a single-run observation, not a result.")
     print(f"  discount in use        {bandit.get('discount')}")
 
     # -- profile bandit ---------------------------------------------------
@@ -254,3 +308,4 @@ def main() -> int:
 
 if __name__ == "__main__":
     sys.exit(main())
+
