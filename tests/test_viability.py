@@ -331,3 +331,112 @@ def test_missing_or_junk_headers_leave_the_cap_unset():
     synth._note_rate_limits(_FakeResponse({"x-ratelimit-limit-tokens": "0"}))
     assert synth.tokens_per_minute is None
 
+
+# -- per-minute vs per-day refusals -------------------------------------------
+#
+# These use response bodies captured verbatim from Groq on 2026-09-17, during a
+# run that lost episodes to a daily cap while every header advertised a full
+# per-minute bucket. Three wrong diagnoses were made before the body was read.
+
+
+class _FakeHTTPResponse:
+    """Enough of requests.Response for the status-code branches."""
+
+    def __init__(self, status_code, headers=None, text=""):
+        self.status_code = status_code
+        self.headers = headers or {}
+        self.text = text
+        self.ok = 200 <= status_code < 300
+
+
+_TPD_BODY = (
+    '{"error":{"message":"Rate limit reached for model `openai/gpt-oss-120b` in '
+    "organization `org_01kx` service tier `on_demand` on tokens per day (TPD): "
+    "Limit 200000, Used 199033, Requested 2721. Please try again in 12m37.728s. "
+    'Need more tokens? Upgrade to Dev Tier today","type":"tokens",'
+    '"code":"rate_limit_exceeded"}}'
+)
+
+_TPM_BODY = (
+    '{"error":{"message":"Rate limit reached for model `openai/gpt-oss-120b` in '
+    "organization `org_01kx` service tier `on_demand` on tokens per minute (TPM): "
+    "Limit 8000, Used 7200, Requested 2721. Please try again in 5.52s. "
+    'Need more tokens?","type":"tokens","code":"rate_limit_exceeded"}}'
+)
+
+#: The headers a daily refusal actually carried: the per-minute bucket reads as
+#: completely free, which is why trusting headers alone is not enough.
+_MISLEADING_HEADERS = {
+    "x-ratelimit-limit-tokens": "8000",
+    "x-ratelimit-remaining-tokens": "8000",
+    "x-ratelimit-reset-tokens": "1ms",
+    "retry-after": "758",
+}
+
+
+def test_a_daily_cap_is_not_treated_as_a_retryable_rate_limit():
+    """The whole point: waiting cannot clear a per-day budget inside a run."""
+    import pytest
+
+    from cleanroom.pipeline.synthesize import DailyQuotaExhausted, RateLimited
+
+    synth = _synth()
+    with pytest.raises(DailyQuotaExhausted) as caught:
+        synth._raise_for_status(
+            _FakeHTTPResponse(429, _MISLEADING_HEADERS, _TPD_BODY)
+        )
+    # Must NOT be routed down the retry path, which would spend five attempts
+    # and ~200s of backoff and then blame the strategy for the failure.
+    assert not isinstance(caught.value, RateLimited)
+    message = str(caught.value)
+    assert "DAILY" in message
+    assert "199,033" in message and "200,000" in message, "restate the real figures"
+    assert "12m37.728s" in message, "say when it resets"
+
+
+def test_a_per_minute_cap_stays_retryable():
+    import pytest
+
+    from cleanroom.pipeline.synthesize import DailyQuotaExhausted, RateLimited
+
+    synth = _synth()
+    with pytest.raises(RateLimited) as caught:
+        synth._raise_for_status(
+            _FakeHTTPResponse(429, {"retry-after": "5.52"}, _TPM_BODY)
+        )
+    assert not isinstance(caught.value, DailyQuotaExhausted)
+    assert caught.value.retry_after == pytest.approx(5.52)
+    assert "7,200 of 8,000" in str(caught.value)
+
+
+def test_daily_cap_aborts_rather_than_retrying_synthesis_twice():
+    """`_run` retries once on failure; a spent daily budget must skip that.
+
+    Otherwise one clear "the tier is exhausted" message is rewritten as
+    "failed twice", which sends the reader hunting for a bug in the model's
+    output instead of checking the quota.
+    """
+    import pytest
+
+    from cleanroom.pipeline.synthesize import DailyQuotaExhausted
+
+    synth = _synth()
+    calls = []
+
+    def fake_call(system, user):
+        calls.append(user)
+        raise DailyQuotaExhausted("daily budget gone")
+
+    synth._call = fake_call
+    with pytest.raises(DailyQuotaExhausted):
+        synth._run("sys", "user", "table_parse", None)
+    assert len(calls) == 1, f"should not retry a daily cap, made {len(calls)} calls"
+
+
+def test_quota_detail_survives_an_unparseable_body():
+    """A provider that phrases it differently must not crash the error path."""
+    from cleanroom.pipeline.openai_compat import _quota_detail
+
+    assert "no figures" in _quota_detail("429 Too Many Requests")
+    assert "no figures" in _quota_detail("")
+

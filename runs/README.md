@@ -101,12 +101,40 @@ result.
 attempt on 2026-09-17 to run 24 episodes with uniform-random strategy selection
 over the same pinned 8-URL pool **failed**: only 8 of 24 episodes scored, the
 other 16 dying at `synthesis_failed` with "rate limit (429) after 5 attempts".
-The cause is itself interesting — bad strategies return zero rows, which triggers
-a repair turn, which doubles LLM calls per episode, which blows the 8,000
-tokens/minute ceiling. Random selection throttles itself and the bandit does not.
-That is a real effect, but it contaminates any reward comparison between the two
-arms. **A valid control needs `--repairs 0` on both arms** so calls per episode
-are equal, or a provider without the ceiling.
+
+A second attempt the same day, with `--repairs 0` and the execution profile
+pinned, failed too — and established why. **The earlier explanation offered here
+was wrong, and is retracted.** It said bad strategies trigger repair turns, which
+double the calls, so random selection throttles itself while the bandit does
+not. That mechanism was inferred from the retry count, never measured: the code
+discarded the 429 body, so nothing recorded *which* limit had been hit.
+
+Reading that body directly gives a simpler and more damaging explanation. The
+provider enforces a **per-day** token budget — `tokens per day (TPD): Limit
+200000, Used 199033` — which the `x-ratelimit-*` headers do not expose at all;
+they describe the per-minute bucket, and during a daily refusal they read
+`remaining-tokens: 8000, reset: 1ms`. So a run can be blocked for twelve hours
+while every header says it is free to proceed. One 24-episode arm costs about
+105,600 tokens, so **whichever arm runs second is starved regardless of which
+strategies it picked.** That alone can produce the v1 result, with no
+self-throttling story required.
+
+Two consequences:
+
+- **`--repairs 0` is not sufficient**, so the earlier prescription here was also
+  wrong. Synthesis retries once on any failure independently of the repair
+  budget (`openai_compat.py::_run`), and while the profile bandit is live the
+  per-call token cost swings about 2x between `lean` and a clipped `thorough`.
+  Equalising effort needs the profile pinned as well.
+- **The control as specified cannot run on this tier.** Two 24-episode arms cost
+  roughly 211,000 tokens against a 200,000/day ceiling — more than a full day's
+  budget before any retries. It needs fewer episodes per arm, a model with its
+  own daily bucket, or a paid tier.
+
+The agent now distinguishes the two cases: a per-day refusal raises
+`DailyQuotaExhausted` and aborts the run with the provider's own figures,
+instead of spending five retries and ~200s of backoff and then logging the
+episode as a synthesis failure, which reads as the agent's fault.
 
 Until that control runs, the honest position is: the climb is not composition,
 and it is not yet attributed to strategy selection rather than to the profile

@@ -97,6 +97,28 @@ class CreditsExhausted(SynthesisError):
     """
 
 
+class DailyQuotaExhausted(CreditsExhausted):
+    """The provider's *daily* token budget is gone, not just this minute's.
+
+    A 429 does not say which limit it means, and the `x-ratelimit-*` headers
+    are actively misleading here: they report the per-minute bucket, so a
+    response can advertise `remaining_tokens: 8000, reset: 1ms` while a daily
+    cap is what actually refused the call. Only the response body distinguishes
+    them.
+
+    The distinction matters because the two need opposite responses. A
+    per-minute bucket refills in under a minute, so waiting works. A per-day
+    bucket refills in hours, so waiting inside a run does not -- the retry
+    budget is spent for nothing and the episode is then logged as a synthesis
+    failure, which reads as the agent's fault. Inherits from CreditsExhausted
+    to get the same abort-the-run handling, for the same reason.
+    """
+
+    def __init__(self, message: str, *, retry_after: float = 0.0) -> None:
+        super().__init__(message)
+        self.retry_after = retry_after
+
+
 @dataclass
 class Extractor:
     code: str

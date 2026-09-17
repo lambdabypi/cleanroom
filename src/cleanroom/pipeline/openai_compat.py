@@ -23,6 +23,7 @@ byte-identical, or a repair turn cannot discover anything new.
 
 from __future__ import annotations
 
+import re
 import time
 from collections import deque
 
@@ -31,6 +32,8 @@ import requests
 from cleanroom.config import Settings, settings
 from cleanroom.pipeline.synthesize import (
     CONTRACT,
+    CreditsExhausted,
+    DailyQuotaExhausted,
     Extractor,
     PayloadTooLarge,
     RateLimited,
@@ -109,6 +112,29 @@ class TokenPacer:
             if spent + estimated_tokens <= budget:
                 return max(0.0, 60.0 - (now - timestamp)) + 0.5
         return 60.0
+
+
+#: A 429 body is the *only* place an OpenAI-compatible tier says which limit it
+#: enforced. Measured on Groq: a per-day refusal arrives with
+#: `x-ratelimit-remaining-tokens: 8000` and `x-ratelimit-reset-tokens: 1ms`,
+#: because those headers describe the per-minute bucket. Reading the status code
+#: alone, or trusting the headers, makes a 12-hour wall look like a 1-second one.
+_DAILY_LIMIT = re.compile(r"tokens per day|\bTPD\b", re.IGNORECASE)
+_LIMIT_FIGURES = re.compile(r"Limit\s+(\d+),\s*Used\s+(\d+),\s*Requested\s+(\d+)")
+_TRY_AGAIN_IN = re.compile(r"try again in ([0-9hms.]+)")
+
+
+def _quota_detail(body: str) -> str:
+    """Restate the provider's own figures, so the log says what ran out."""
+    figures = _LIMIT_FIGURES.search(body)
+    when = _TRY_AGAIN_IN.search(body)
+    parts = []
+    if figures:
+        limit, used, requested = (int(g) for g in figures.groups())
+        parts.append(f"used {used:,} of {limit:,} tokens, this call needed {requested:,}")
+    if when:
+        parts.append(f"resets in {when.group(1)}")
+    return "; ".join(parts) or "the provider gave no figures"
 
 
 def _retry_after(resp: requests.Response) -> float:
@@ -313,7 +339,29 @@ class OpenAICompatSynthesizer:
         # Learn the provider's limits from every response, including failures --
         # a 429 carries the headers too, and that is exactly when we need them.
         self._note_rate_limits(resp)
+        self._raise_for_status(resp)
 
+        try:
+            payload = resp.json()
+        except ValueError as exc:
+            raise SynthesisError(f"{self.endpoint} returned non-JSON") from exc
+
+        choices = payload.get("choices") or []
+        if not choices:
+            error = (payload.get("error") or {}).get("message") or str(payload)[:200]
+            raise SynthesisError(f"no choices returned: {error}")
+        content = ((choices[0].get("message") or {}).get("content") or "").strip()
+        if not content:
+            raise SynthesisError("model returned empty content")
+        return content, (payload.get("usage") or {})
+
+    def _raise_for_status(self, resp: requests.Response) -> None:
+        """Turn an error response into the narrowest exception that fits.
+
+        Split out from `_post` so each branch can be driven by a test with a
+        captured response body, rather than only by a live provider having a
+        bad day.
+        """
         if resp.status_code in (401, 403):
             raise SynthesisError(
                 f"{self.endpoint} rejected the credentials ({resp.status_code}). "
@@ -336,8 +384,21 @@ class OpenAICompatSynthesizer:
                 f"404 from {self.endpoint} for model {self.cfg.llm_model!r}. {hint}"
             )
         if resp.status_code == 429:
+            # Separate "this minute is full" from "today is gone" before
+            # retrying. Retrying the second wastes the whole retry budget and
+            # then logs the episode as a synthesis failure, which reads as the
+            # agent writing bad code rather than the tier being spent.
+            body = resp.text[:600]
+            if _DAILY_LIMIT.search(body):
+                raise DailyQuotaExhausted(
+                    f"{self.cfg.llm_model}: the provider's DAILY token budget is "
+                    f"exhausted ({_quota_detail(body)}). Waiting cannot fix this "
+                    "inside a run -- switch model, use another key, or resume "
+                    "after the reset.",
+                    retry_after=_retry_after(resp),
+                )
             raise RateLimited(
-                f"{self.cfg.llm_model} rate limit (429)",
+                f"{self.cfg.llm_model} rate limit (429): {_quota_detail(body)}",
                 retry_after=_retry_after(resp),
             )
         if resp.status_code == 413:
@@ -350,20 +411,6 @@ class OpenAICompatSynthesizer:
             )
         if not resp.ok:
             raise SynthesisError(f"{self.endpoint} {resp.status_code}: {resp.text[:300]}")
-
-        try:
-            payload = resp.json()
-        except ValueError as exc:
-            raise SynthesisError(f"{self.endpoint} returned non-JSON") from exc
-
-        choices = payload.get("choices") or []
-        if not choices:
-            error = (payload.get("error") or {}).get("message") or str(payload)[:200]
-            raise SynthesisError(f"no choices returned: {error}")
-        content = ((choices[0].get("message") or {}).get("content") or "").strip()
-        if not content:
-            raise SynthesisError("model returned empty content")
-        return content, (payload.get("usage") or {})
 
     def _run(self, system: str, user: str, strategy_id: str,
              repaired_from: str | None) -> Extractor:
@@ -392,6 +439,12 @@ class OpenAICompatSynthesizer:
             except PayloadTooLarge:
                 # Retrying the same oversized prompt is pointless; the caller
                 # shrinks the document budget and tries again.
+                raise
+            except CreditsExhausted:
+                # Credits gone, or the daily token budget spent. A second
+                # attempt cannot succeed, and spending it rewrites one clear
+                # "the tier is exhausted" message into "failed twice", which
+                # sends the reader looking for a bug in the code writer.
                 raise
             except SynthesisError as exc:
                 attempts.append(str(exc))
