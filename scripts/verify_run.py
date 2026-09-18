@@ -137,6 +137,27 @@ def main() -> int:
         print(f"not a directory: {root}")
         return 1
 
+    # A two-arm control snapshot holds one state directory per arm rather than
+    # the flat layout, so there is nothing to read at the top level. Verify each
+    # arm in turn instead of reporting an empty run, which reads like a broken
+    # snapshot rather than a differently shaped one.
+    if not (root / "episodes.jsonl").exists():
+        arms = sorted(p for p in root.iterdir()
+                      if p.is_dir() and (p / "episodes.jsonl").exists())
+        if arms:
+            print(f"{root} is a multi-arm snapshot; verifying each arm.")
+            print("For the bandit-vs-random comparison itself, run:")
+            print(f"  python scripts/compare_arms.py {root}")
+            worst = 0
+            for arm in arms:
+                print(f"\n{'=' * 70}")
+                worst |= main_one(arm)
+            return worst
+
+    return main_one(root)
+
+
+def main_one(root: pathlib.Path) -> int:
     print(f"Verifying snapshot: {root}")
 
     episodes = jsonl(root / "episodes.jsonl")

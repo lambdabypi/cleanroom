@@ -1,0 +1,97 @@
+{
+  "arms": [
+    "lean",
+    "standard",
+    "thorough"
+  ],
+  "buckets": [
+    "table_heavy",
+    "list_heavy",
+    "sectioned",
+    "prose"
+  ],
+  "discount": 0.98,
+  "min_pulls": 1,
+  "stats": {
+    "list_heavy": {
+      "lean": {
+        "alpha": 1.0,
+        "beta": 1.0,
+        "pulls": 0,
+        "reward_sum": 0.0
+      },
+      "standard": {
+        "alpha": 1.0,
+        "beta": 1.0,
+        "pulls": 0,
+        "reward_sum": 0.0
+      },
+      "thorough": {
+        "alpha": 1.0,
+        "beta": 1.0,
+        "pulls": 0,
+        "reward_sum": 0.0
+      }
+    },
+    "prose": {
+      "lean": {
+        "alpha": 1.0,
+        "beta": 1.0,
+        "pulls": 0,
+        "reward_sum": 0.0
+      },
+      "standard": {
+        "alpha": 1.0,
+        "beta": 1.0,
+        "pulls": 0,
+        "reward_sum": 0.0
+      },
+      "thorough": {
+        "alpha": 1.0,
+        "beta": 1.0,
+        "pulls": 0,
+        "reward_sum": 0.0
+      }
+    },
+    "sectioned": {
+      "lean": {
+        "alpha": 1.0,
+        "beta": 1.0,
+        "pulls": 0,
+        "reward_sum": 0.0
+      },
+      "standard": {
+        "alpha": 1.0,
+        "beta": 1.0,
+        "pulls": 0,
+        "reward_sum": 0.0
+      },
+      "thorough": {
+        "alpha": 1.0,
+        "beta": 1.0,
+        "pulls": 0,
+        "reward_sum": 0.0
+      }
+    },
+    "table_heavy": {
+      "lean": {
+        "alpha": 6.816893484604364,
+        "beta": 5.146538977905838,
+        "pulls": 11,
+        "reward_sum": 6.391459669582119
+      },
+      "standard": {
+        "alpha": 1.0,
+        "beta": 1.0,
+        "pulls": 0,
+        "reward_sum": 0.0
+      },
+      "thorough": {
+        "alpha": 1.0,
+        "beta": 1.0,
+        "pulls": 0,
+        "reward_sum": 0.0
+      }
+    }
+  }
+}

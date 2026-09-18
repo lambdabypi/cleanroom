@@ -7,12 +7,25 @@ any writing about this project can be checked rather than taken on trust.
 ```bash
 python scripts/verify_run.py                      # newest snapshot
 python scripts/verify_run.py runs/2026-09-11-hackathon
+python scripts/compare_arms.py runs/2026-09-17-control-haiku   # the control run
 ```
 
-`verify_run.py` imports nothing from `cleanroom` and has no dependencies. It
-recomputes each headline number from the artifacts and prints a `CAUTION` line
-wherever the data is too thin to support a claim. Read those lines — they are the
-point of the script.
+Both scripts import nothing from `cleanroom` and have no dependencies, and both
+read the primary artifacts rather than any derived summary. They recompute each
+headline number and print a `CAUTION` line wherever the data is too thin to
+support a claim. Read those lines — they are the point of the scripts.
+`compare_arms.py` additionally reports how much of the reward variance is
+code-generation noise and what sample size a real answer would need, because a
+null result without that number is not interpretable.
+
+## Snapshot index
+
+| Snapshot | What it is |
+|---|---|
+| `2026-09-17-control-haiku` | the bandit-vs-random control, 24 episodes/arm, interleaved — **the only causal test here, and it is null** |
+| `2026-09-16-paced-24` | the most complete single-policy run; its claims are stress-tested below |
+| `2026-09-15-clean-30` | 30 uninterrupted episodes before the fixes; the run to cite for mechanism |
+| `2026-09-11-hackathon` | the hackathon run. Read the caveats |
 
 ## What this repository actually supports
 
@@ -40,8 +53,13 @@ it is easy to read a snapshot and over-claim from it.
   `heading_sections`), each from 2–9 pulls.
 - The `+0.97` pull/reward correlation as a headline. n=5 arms, p=0.0333, and one
   adjacent rank swap moves it to p=0.067–0.133.
-- Any statement that the bandit *caused* the improvement. The control run that
-  would show this has not successfully run.
+- Any statement that the bandit *caused* the improvement. A valid control ran on
+  2026-09-17 and found **no significant difference** from uniform-random
+  selection (24 episodes/arm, paired difference +0.021, p=0.82) — and it was far
+  too underpowered to settle it either way, needing ~214 episodes/arm to detect
+  a 0.10 difference. Neither "it works" nor "it doesn't" is supported.
+- That `table_parse` is a good arm. Pooled over the 48 control episodes it is
+  the worst (0.374 vs 0.69–0.72 for the other four).
 - A learned cost/profile preference. Too few on-policy episodes in every run.
 - That lessons are stored in One. They are in local JSONL; One's `mem` store
   could not start on this machine.
@@ -97,10 +115,16 @@ Simpson's risk does apply to the two-bucket `clean-30` run. It is a suggestive
 single-run observation that needs replication across 3–4 runs before it is a
 result.
 
-**No control run exists, so the bandit's contribution is still unproven.** An
-attempt on 2026-09-17 to run 24 episodes with uniform-random strategy selection
-over the same pinned 8-URL pool **failed**: only 8 of 24 episodes scored, the
-other 16 dying at `synthesis_failed` with "rate limit (429) after 5 attempts".
+**The control now exists, and it finds no significant difference.** See
+"The control run (2026-09-17)" below for the result and, more importantly, for
+how little this experiment was ever able to detect. The history of the four
+attempts it took is kept here because three of them failed for one reason that
+is easy to repeat.
+
+An attempt on 2026-09-17 to run 24 episodes with uniform-random strategy
+selection over the same pinned 8-URL pool **failed**: only 8 of 24 episodes
+scored, the other 16 dying at `synthesis_failed` with "rate limit (429) after 5
+attempts".
 
 A second attempt the same day, with `--repairs 0` and the execution profile
 pinned, failed too — and established why. **The earlier explanation offered here
@@ -136,9 +160,84 @@ The agent now distinguishes the two cases: a per-day refusal raises
 instead of spending five retries and ~200s of backoff and then logging the
 episode as a synthesis failure, which reads as the agent's fault.
 
-Until that control runs, the honest position is: the climb is not composition,
-and it is not yet attributed to strategy selection rather than to the profile
-bandit or lesson retrieval.
+### The control run (2026-09-17)
+
+Ran on `claude-haiku-4-5`, because the free tier's per-day cap could not fit two
+arms. **24 episodes per arm, both arms 24/24 scored, zero provider failures,
+$0.4373 of measured spend.** The two arms are *interleaved* — bandit ep1, random
+ep1, bandit ep2, … — so both see the same page at the same index under the same
+provider conditions, and a mid-run stop truncates both equally. The execution
+profile is pinned to `lean` in both, leaving strategy selection as the only
+thing that differs. Pages are fetched once and cached, so both arms read
+byte-identical input.
+
+| | bandit | uniform random |
+|---|---|---|
+| scored | 24/24 | 24/24 |
+| mean reward | 0.655 | 0.634 |
+| first third → last third | 0.727 → 0.673 | 0.672 → 0.499 |
+
+Paired on page (episode *i* is the same page in both arms):
+
+- **Mean paired difference +0.021, sign-flip p = 0.82**, 10 of 24 pairs favour
+  the bandit (5 tied, 19 informative). **No significant difference.**
+- Difference-in-differences on the climb: +0.119, randomization p = 0.67. The
+  within-run climb is **not** attributable to strategy selection either.
+
+**Why the null is weak evidence, not strong evidence.** Reward here is mostly
+noise from code generation, not from the policy. Across the 13 (page, strategy)
+cells that repeat, the standard deviation *within* a cell is **0.258** — the same
+page with the same strategy returns `[0.918, 0.0]` and `[0.0, 0.918, 0.918]`.
+The spread *between* strategy means is only **0.133**. The noise is about twice
+the signal, so at n=24 this design could only have detected a difference of
+roughly 0.3. For 80% power at α=0.05 it needs **214 episodes per arm to detect a
+0.10 reward difference** (~$4.77 on this model) and 853 per arm for 0.05. Every
+live run in this repo is 14–30 episodes. **Nothing here can settle the question;
+the honest reading is "not measured", not "no effect".**
+
+One strategy-level signal does survive pooling all 48 episodes: `table_parse`
+averages **0.374** (n=9) while the other four arms cluster at 0.69–0.72. That is
+the *third* run to contradict the hackathon snapshot's "`table_parse` wins on
+table-heavy pages", and the first to suggest it is the worst arm rather than a
+middling one.
+
+**A second replication on a different model disagrees, which is itself the
+result.** The same interleaved design on Groq's `openai/gpt-oss-20b` reached only
+12 episodes per arm before the daily cap stopped it, and there uniform-random
+*beat* the bandit (mean paired difference −0.301, exact sign-flip p = 0.031, 0 of
+10 pairs favouring the bandit). It should not be cited on its own: the random arm
+lost 2 episodes to empty completions while the bandit lost none, and the bandit's
+zeros were mostly `stage=extract` crashes (`IndexError`, `NameError`,
+`extract() exceeded 25s`) rather than a badly chosen strategy. Two runs, two
+opposite directions, neither significant in the same place — which is what
+"underpowered" looks like from the inside.
+
+Diagnostics worth keeping from that run, because they point at design limits
+rather than bugs:
+
+- **`min_pulls=1` is too low for this pool.** The bandit pulled
+  `label_value_pairs` exactly once, at the episode that lands on
+  `spheron.network` — a page where *both* arms scored 0.000 — and effectively
+  discarded the arm. Uniform random drew it 5 times on easier pages and scored
+  0.918/0.922/0.921. With per-page difficulty spanning 0.306–0.923, one pull says
+  more about which page it landed on than which strategy was chosen.
+- **The page-shape bucket is too coarse.** All 8 pages collapse into
+  `table_heavy`, so one posterior is averaged over pages that want different
+  strategies. The bandit scored 0.921 on `thundercompute/h100` at ep1 with
+  `table_parse`, then 0.000 on that same page at ep9 with `list_items`. It cannot
+  represent "this strategy for this host".
+
+**Remaining confound, unfixed.** Each arm keeps its own lesson store, so the two
+diverge as soon as the arms do. In the Groq run the bandit's lessons became
+uniformly failure reports while random's included actionable positives
+(`label_value_pairs works well; reward 0.92`). Interleaving removes the
+provider-order confound; it cannot remove this one, because any second learning
+channel drifts with the arm it is attached to. A clean isolation would disable
+lesson retrieval in both arms.
+
+So the honest position on `paced-24` is now: the climb is not composition, and
+the control does not attribute it to strategy selection — but the control is far
+too underpowered to attribute it to anything else either.
 
 **On the causal story for the improvement — weaker than it first appeared.** The
 two `getdeploying.com` subpages the screen excluded were returning 1,455

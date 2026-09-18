@@ -1,0 +1,188 @@
+provider,gpu_model,gpu_count,usd_per_hour,region,source_url
+Vultr,H100,,2.99,,https://www.thundercompute.com/blog/nvidia-h100-pricing
+Hyperbolic,H100,,3.19,,https://www.thundercompute.com/blog/nvidia-h100-pricing
+Thunder Compute,H100,,3.2,per-minute,https://www.thundercompute.com/blog/nvidia-h100-pricing
+Lambda,H100,,3.29,,https://www.thundercompute.com/blog/nvidia-h100-pricing
+Runpod,H100,,3.49,,https://www.thundercompute.com/blog/nvidia-h100-pricing
+Nebius,H100,,3.85,,https://www.thundercompute.com/blog/nvidia-h100-pricing
+Crusoe Cloud,H100,,3.9,,https://www.thundercompute.com/blog/nvidia-h100-pricing
+Modal,H100,,3.95,,https://www.thundercompute.com/blog/nvidia-h100-pricing
+DigitalOcean,H100,,4.41,,https://www.thundercompute.com/blog/nvidia-h100-pricing
+Vast.ai,H100,,5.65,,https://www.thundercompute.com/blog/nvidia-h100-pricing
+Paperspace,H100,,5.95,,https://www.thundercompute.com/blog/nvidia-h100-pricing
+CoreWeave,H100,8,6.16,8-GPU,https://www.thundercompute.com/blog/nvidia-h100-pricing
+Azure,H100,,6.98,GPU-hr,https://www.thundercompute.com/blog/nvidia-h100-pricing
+Oracle Cloud,H100,,10.0,8-GPU,https://www.thundercompute.com/blog/nvidia-h100-pricing
+Thunder Compute,A100,,1.09,,https://www.thundercompute.com/blog/nvidia-h100-pricing
+Lium,H100,,1.3,,https://getdeploying.com/gpus
+Packet·ai,B200,,3.75,,https://getdeploying.com/gpus
+Packet·ai,RTX PRO 6000,,0.66,,https://getdeploying.com/gpus
+Beam,H200,,2.09,,https://getdeploying.com/gpus
+HyperAI,RTX 5090,,0.35,,https://getdeploying.com/gpus
+Vast.ai,A100,,0.38,,https://getdeploying.com/gpus
+CoreWeave,GB200,,10.5,,https://getdeploying.com/gpus
+Theta EdgeCloud,RTX 4090,,0.23,,https://getdeploying.com/gpus
+Runpod,MI300X,,2.39,,https://getdeploying.com/gpus
+Lium,L40S,,0.38,,https://getdeploying.com/gpus
+HyperAI,RTX 3090,,0.1,,https://getdeploying.com/gpus
+Vast.ai,RTX 6000 Ada,,0.5,,https://getdeploying.com/gpus
+Thunder Compute,RTX A6000,,0.35,,https://getdeploying.com/gpus
+Vast.ai,L4,,0.31,,https://getdeploying.com/gpus
+Vast.ai,V100,,0.07,,https://getdeploying.com/gpus
+Vast.ai,RTX PRO 5000,,0.7,,https://getdeploying.com/gpus
+Jarvislabs,H100 SXM,,2.69,,https://jarvislabs.ai/blog/h100-price
+Runpod,H100 SXM,,3.49,,https://jarvislabs.ai/blog/h100-price
+Lambda,H100 SXM,1,4.29,,https://jarvislabs.ai/blog/h100-price
+Spheron,H100 SXM5,,2.91,,https://www.spheron.network/blog/gpu-cloud-pricing-comparison-2026/
+Spheron,H100 SXM5,,2.54,,https://www.spheron.network/blog/gpu-cloud-pricing-comparison-2026/
+AWS,H100 SXM5,,6.88,,https://www.spheron.network/blog/gpu-cloud-pricing-comparison-2026/
+Azure,H100 SXM5,,12.29,,https://www.spheron.network/blog/gpu-cloud-pricing-comparison-2026/
+Spheron,B200 SXM6,,5.34,,https://www.spheron.network/blog/gpu-cloud-pricing-comparison-2026/
+Spheron,B200 SXM6,,9.36,,https://www.spheron.network/blog/gpu-cloud-pricing-comparison-2026/
+AWS,B200 SXM6,,14.24,,https://www.spheron.network/blog/gpu-cloud-pricing-comparison-2026/
+Spheron,A100 80GB,,0.8,,https://www.spheron.network/blog/gpu-cloud-pricing-comparison-2026/
+Spheron,A100 80GB,,1.43,,https://www.spheron.network/blog/gpu-cloud-pricing-comparison-2026/
+AWS,A100 80GB,,3.43,,https://www.spheron.network/blog/gpu-cloud-pricing-comparison-2026/
+Azure,A100 80GB,,3.67,,https://www.spheron.network/blog/gpu-cloud-pricing-comparison-2026/
+Spheron,H200 SXM,,3.31,,https://www.spheron.network/blog/gpu-cloud-pricing-comparison-2026/
+Spheron,H200 SXM,,3.7,,https://www.spheron.network/blog/gpu-cloud-pricing-comparison-2026/
+AWS,H200 SXM,,4.98,,https://www.spheron.network/blog/gpu-cloud-pricing-comparison-2026/
+Azure,H200 SXM,,13.78,,https://www.spheron.network/blog/gpu-cloud-pricing-comparison-2026/
+Spheron,RTX 4090,,0.55,,https://www.spheron.network/blog/gpu-cloud-pricing-comparison-2026/
+Spheron,H100 SXM5,,2.5,,https://www.spheron.network/blog/gpu-cloud-pricing-comparison-2026/
+Spheron,H100 PCI,,2.01,,https://www.spheron.network/blog/gpu-cloud-pricing-comparison-2026/
+Lambda Labs,H100 SXM5,,2.49,,https://www.spheron.network/blog/gpu-cloud-pricing-comparison-2026/
+Runpod,H100 SXM5,,2.99,,https://www.spheron.network/blog/gpu-cloud-pricing-comparison-2026/
+Vast,H100 SXM5,,1.53,,https://www.spheron.network/blog/gpu-cloud-pricing-comparison-2026/
+CoreWeave,H100 SXM5,,6.16,,https://www.spheron.network/blog/gpu-cloud-pricing-comparison-2026/
+Nebius,H100 SXM5,,3.85,,https://www.spheron.network/blog/gpu-cloud-pricing-comparison-2026/
+FluidStack,H100 SXM5,,2.1,,https://www.spheron.network/blog/gpu-cloud-pricing-comparison-2026/
+Paperspace,H100 SXM5,,5.95,,https://www.spheron.network/blog/gpu-cloud-pricing-comparison-2026/
+GCP,H100 SXM5,,10.98,,https://www.spheron.network/blog/gpu-cloud-pricing-comparison-2026/
+OCI,H100,,10.0,,https://www.spheron.network/blog/gpu-cloud-pricing-comparison-2026/
+Azure,H100,,12.29,,https://www.spheron.network/blog/gpu-cloud-pricing-comparison-2026/
+Lambda Labs,H200 SXM,,2.49,,https://www.spheron.network/blog/gpu-cloud-pricing-comparison-2026/
+Runpod,H200 SXM,,2.99,,https://www.spheron.network/blog/gpu-cloud-pricing-comparison-2026/
+Vast,H200 SXM,,1.53,,https://www.spheron.network/blog/gpu-cloud-pricing-comparison-2026/
+CoreWeave,H200 SXM,,6.16,,https://www.spheron.network/blog/gpu-cloud-pricing-comparison-2026/
+Nebius,H200 SXM,,3.85,,https://www.spheron.network/blog/gpu-cloud-pricing-comparison-2026/
+FluidStack,H200 SXM,,2.1,,https://www.spheron.network/blog/gpu-cloud-pricing-comparison-2026/
+Paperspace,H200 SXM,,5.95,,https://www.spheron.network/blog/gpu-cloud-pricing-comparison-2026/
+AWS,H200 SXM,,6.88,,https://www.spheron.network/blog/gpu-cloud-pricing-comparison-2026/
+GCP,H200 SXM,,10.98,,https://www.spheron.network/blog/gpu-cloud-pricing-comparison-2026/
+Lambda Labs,B200,,2.49,,https://www.spheron.network/blog/gpu-cloud-pricing-comparison-2026/
+Runpod,B200,,2.99,,https://www.spheron.network/blog/gpu-cloud-pricing-comparison-2026/
+Vast,B200,,1.53,,https://www.spheron.network/blog/gpu-cloud-pricing-comparison-2026/
+CoreWeave,B200,,6.16,,https://www.spheron.network/blog/gpu-cloud-pricing-comparison-2026/
+Nebius,B200,,3.85,,https://www.spheron.network/blog/gpu-cloud-pricing-comparison-2026/
+FluidStack,B200,,2.1,,https://www.spheron.network/blog/gpu-cloud-pricing-comparison-2026/
+Paperspace,B200,,5.95,,https://www.spheron.network/blog/gpu-cloud-pricing-comparison-2026/
+AWS,B200,,6.88,,https://www.spheron.network/blog/gpu-cloud-pricing-comparison-2026/
+GCP,B200,,10.98,,https://www.spheron.network/blog/gpu-cloud-pricing-comparison-2026/
+Lambda Labs,A100 80GB,,2.49,,https://www.spheron.network/blog/gpu-cloud-pricing-comparison-2026/
+Runpod,A100 80GB,,2.99,,https://www.spheron.network/blog/gpu-cloud-pricing-comparison-2026/
+Vast,A100 80GB,,1.53,,https://www.spheron.network/blog/gpu-cloud-pricing-comparison-2026/
+CoreWeave,A100 80GB,,6.16,,https://www.spheron.network/blog/gpu-cloud-pricing-comparison-2026/
+Nebius,A100 80GB,,3.85,,https://www.spheron.network/blog/gpu-cloud-pricing-comparison-2026/
+FluidStack,A100 80GB,,2.1,,https://www.spheron.network/blog/gpu-cloud-pricing-comparison-2026/
+Paperspace,A100 80GB,,5.95,,https://www.spheron.network/blog/gpu-cloud-pricing-comparison-2026/
+AWS,A100 80GB,,6.88,,https://www.spheron.network/blog/gpu-cloud-pricing-comparison-2026/
+GCP,A100 80GB,,10.98,,https://www.spheron.network/blog/gpu-cloud-pricing-comparison-2026/
+Lambda Labs,L40S,,2.49,,https://www.spheron.network/blog/gpu-cloud-pricing-comparison-2026/
+Runpod,L40S,,2.99,,https://www.spheron.network/blog/gpu-cloud-pricing-comparison-2026/
+Vast,L40S,,1.53,,https://www.spheron.network/blog/gpu-cloud-pricing-comparison-2026/
+CoreWeave,L40S,,6.16,,https://www.spheron.network/blog/gpu-cloud-pricing-comparison-2026/
+Nebius,L40S,,3.85,,https://www.spheron.network/blog/gpu-cloud-pricing-comparison-2026/
+FluidStack,L40S,,2.1,,https://www.spheron.network/blog/gpu-cloud-pricing-comparison-2026/
+Paperspace,L40S,,5.95,,https://www.spheron.network/blog/gpu-cloud-pricing-comparison-2026/
+AWS,L40S,,6.88,,https://www.spheron.network/blog/gpu-cloud-pricing-comparison-2026/
+GCP,L40S,,10.98,,https://www.spheron.network/blog/gpu-cloud-pricing-comparison-2026/
+Lambda Labs,RTX 4090,,2.49,,https://www.spheron.network/blog/gpu-cloud-pricing-comparison-2026/
+Runpod,RTX 4090,,2.99,,https://www.spheron.network/blog/gpu-cloud-pricing-comparison-2026/
+Vast,RTX 4090,,1.53,,https://www.spheron.network/blog/gpu-cloud-pricing-comparison-2026/
+CoreWeave,RTX 4090,,6.16,,https://www.spheron.network/blog/gpu-cloud-pricing-comparison-2026/
+Nebius,RTX 4090,,3.85,,https://www.spheron.network/blog/gpu-cloud-pricing-comparison-2026/
+FluidStack,RTX 4090,,2.1,,https://www.spheron.network/blog/gpu-cloud-pricing-comparison-2026/
+Paperspace,RTX 4090,,5.95,,https://www.spheron.network/blog/gpu-cloud-pricing-comparison-2026/
+AWS,RTX 4090,,6.88,,https://www.spheron.network/blog/gpu-cloud-pricing-comparison-2026/
+GCP,RTX 4090,,10.98,,https://www.spheron.network/blog/gpu-cloud-pricing-comparison-2026/
+Lambda Labs,RTX 5090,,2.49,,https://www.spheron.network/blog/gpu-cloud-pricing-comparison-2026/
+Runpod,RTX 5090,,2.99,,https://www.spheron.network/blog/gpu-cloud-pricing-comparison-2026/
+Vast,RTX 5090,,1.53,,https://www.spheron.network/blog/gpu-cloud-pricing-comparison-2026/
+CoreWeave,RTX 5090,,6.16,,https://www.spheron.network/blog/gpu-cloud-pricing-comparison-2026/
+Nebius,RTX 5090,,3.85,,https://www.spheron.network/blog/gpu-cloud-pricing-comparison-2026/
+FluidStack,RTX 5090,,2.1,,https://www.spheron.network/blog/gpu-cloud-pricing-comparison-2026/
+Paperspace,RTX 5090,,5.95,,https://www.spheron.network/blog/gpu-cloud-pricing-comparison-2026/
+AWS,RTX 5090,,6.88,,https://www.spheron.network/blog/gpu-cloud-pricing-comparison-2026/
+GCP,RTX 5090,,10.98,,https://www.spheron.network/blog/gpu-cloud-pricing-comparison-2026/
+Vast.ai,A100,,0.43,,https://getdeploying.com/gpus/nvidia-a100-vs-nvidia-h100
+Vast.ai,H100,,1.73,,https://getdeploying.com/gpus/nvidia-a100-vs-nvidia-h100
+Lium,A100,,1.23,,https://getdeploying.com/gpus/nvidia-a100-vs-nvidia-h100
+Lium,H100,,1.3,,https://getdeploying.com/gpus/nvidia-a100-vs-nvidia-h100
+GPU.ai,A100,,0.54,,https://getdeploying.com/gpus/nvidia-a100-vs-nvidia-h100
+GPU.ai,H100,,1.98,,https://getdeploying.com/gpus/nvidia-a100-vs-nvidia-h100
+Massed Compute,A100,,1.35,,https://getdeploying.com/gpus/nvidia-a100-vs-nvidia-h100
+Massed Compute,H100,,2.73,,https://getdeploying.com/gpus/nvidia-a100-vs-nvidia-h100
+Spheron,A100,,1.43,,https://getdeploying.com/gpus/nvidia-a100-vs-nvidia-h100
+Spheron,H100,,2.65,,https://getdeploying.com/gpus/nvidia-a100-vs-nvidia-h100
+Runpod,A100,,1.0,,https://getdeploying.com/gpus/nvidia-a100-vs-nvidia-h100
+Thunder Compute,A100,,1.09,,https://getdeploying.com/gpus/nvidia-a100-vs-nvidia-h100
+Packet·ai,A100,,1.43,,https://getdeploying.com/gpus/nvidia-a100-vs-nvidia-h100
+HyperAI,H100,,1.8,,https://getdeploying.com/gpus/nvidia-a100-vs-nvidia-h100
+Koyeb,H100,,2.5,,https://getdeploying.com/gpus/nvidia-a100-vs-nvidia-h100
+EmpirioLabs AI,H100,,2.6,,https://getdeploying.com/gpus/nvidia-a100-vs-nvidia-h100
+Thunder Compute,A100 80GB,,1.09,,https://www.thundercompute.com/blog/nvidia-a100-pricing
+Runpod,A100 80GB,,1.59,,https://www.thundercompute.com/blog/nvidia-a100-pricing
+Vast.ai,A100 80GB,,1.73,US,https://www.thundercompute.com/blog/nvidia-a100-pricing
+Crusoe Cloud,A100 80GB,,2.0,,https://www.thundercompute.com/blog/nvidia-a100-pricing
+Vultr,A100 80GB,,2.4,,https://www.thundercompute.com/blog/nvidia-a100-pricing
+Modal,A100 80GB,,2.5,,https://www.thundercompute.com/blog/nvidia-a100-pricing
+CoreWeave,A100 80GB,8,2.7,,https://www.thundercompute.com/blog/nvidia-a100-pricing
+Lambda,A100 80GB,,2.79,,https://www.thundercompute.com/blog/nvidia-a100-pricing
+Paperspace,A100 80GB,,3.18,,https://www.thundercompute.com/blog/nvidia-a100-pricing
+AWS EC2,A100,8,3.43,,https://www.thundercompute.com/blog/nvidia-a100-pricing
+Azure,A100,,3.67,US,https://www.thundercompute.com/blog/nvidia-a100-pricing
+Oracle Cloud,A100,,4.0,,https://www.thundercompute.com/blog/nvidia-a100-pricing
+Google Cloud,A100,,5.03,US,https://www.thundercompute.com/blog/nvidia-a100-pricing
+Vast.ai,A100 40GB,,0.68,US,https://www.thundercompute.com/blog/nvidia-a100-pricing
+Lambda,A100 40GB,,1.99,,https://www.thundercompute.com/blog/nvidia-a100-pricing
+Modal,A100 40GB,,2.1,,https://www.thundercompute.com/blog/nvidia-a100-pricing
+AWS EC2,A100,8,2.74,,https://www.thundercompute.com/blog/nvidia-a100-pricing
+Paperspace,A100 40GB,,3.09,,https://www.thundercompute.com/blog/nvidia-a100-pricing
+Google Cloud,A100,,3.67,US,https://www.thundercompute.com/blog/nvidia-a100-pricing
+Packet ai,B200,,3.75,,https://getdeploying.com/gpus
+Packet ai,RTX PRO 6000,,0.66,,https://getdeploying.com/gpus
+Vast.ai,H100 80GB,,1.49,,https://www.cloudzero.com/blog/cloud-gpu-pricing-comparison/
+Vast.ai,A100 80GB,,0.68,,https://www.cloudzero.com/blog/cloud-gpu-pricing-comparison/
+Vast.ai,L4,,0.13,,https://www.cloudzero.com/blog/cloud-gpu-pricing-comparison/
+RunPod,H100 80GB,,1.99,,https://www.cloudzero.com/blog/cloud-gpu-pricing-comparison/
+Lambda,H100 80GB,,3.29,,https://www.cloudzero.com/blog/cloud-gpu-pricing-comparison/
+Lambda,B200,,4.99,,https://www.cloudzero.com/blog/cloud-gpu-pricing-comparison/
+CoreWeave,H100 80GB,,4.25,,https://www.cloudzero.com/blog/cloud-gpu-pricing-comparison/
+CoreWeave,A100 80GB,,2.21,,https://www.cloudzero.com/blog/cloud-gpu-pricing-comparison/
+CoreWeave,B200,,5.5,,https://www.cloudzero.com/blog/cloud-gpu-pricing-comparison/
+GCP,H100 80GB,,2.25,,https://www.cloudzero.com/blog/cloud-gpu-pricing-comparison/
+GCP,A100 80GB,,5.03,,https://www.cloudzero.com/blog/cloud-gpu-pricing-comparison/
+GCP,L4,,0.7,,https://www.cloudzero.com/blog/cloud-gpu-pricing-comparison/
+GCP,B200,,16.11,,https://www.cloudzero.com/blog/cloud-gpu-pricing-comparison/
+AWS,H100 80GB,,6.88,,https://www.cloudzero.com/blog/cloud-gpu-pricing-comparison/
+AWS,B200,,9.36,,https://www.cloudzero.com/blog/cloud-gpu-pricing-comparison/
+Azure,H100 80GB,,6.98,,https://www.cloudzero.com/blog/cloud-gpu-pricing-comparison/
+Vast.ai (verified hosts),H100,,1.49,,https://www.cloudzero.com/blog/h100-gpu-cost/
+RunPod,H100,,1.99,,https://www.cloudzero.com/blog/h100-gpu-cost/
+GCP (spot),H100,,2.25,,https://www.cloudzero.com/blog/h100-gpu-cost/
+Lambda,H100,,3.29,,https://www.cloudzero.com/blog/h100-gpu-cost/
+CoreWeave,H100,,4.25,,https://www.cloudzero.com/blog/h100-gpu-cost/
+"AWS (p5.48xlarge, 8x H100)",H100,,55.04,,https://www.cloudzero.com/blog/h100-gpu-cost/
+Azure,H100,,6.98,,https://www.cloudzero.com/blog/h100-gpu-cost/
+Azure,Standard_NC24ads_A100_v4,,3.67,,https://www.thundercompute.com/blog/nvidia-a100-pricing
+Oracle Cloud,BM.GPU.A100-v2.8,,4.0,,https://www.thundercompute.com/blog/nvidia-a100-pricing
+AWS EC2,A100 80GB,1,3.43,,https://www.thundercompute.com/blog/nvidia-a100-pricing
+Azure,A100 80GB,1,3.67,,https://www.thundercompute.com/blog/nvidia-a100-pricing
+Oracle Cloud,A100 80GB,1,4.0,,https://www.thundercompute.com/blog/nvidia-a100-pricing
+Google Cloud,A100 80GB,1,5.03,,https://www.thundercompute.com/blog/nvidia-a100-pricing
+Lambda,H100 SXM instance,,4.29,,https://jarvislabs.ai/blog/h100-price
+Spheron,B200 SXM6,,2.12,,https://www.spheron.network/blog/gpu-cloud-pricing-comparison-2026/
+Vast.ai,H100,,1.49,,https://www.cloudzero.com/blog/h100-gpu-cost/
+GCP,H100,,2.25,,https://www.cloudzero.com/blog/h100-gpu-cost/
+AWS,H100,8,6.88,,https://www.cloudzero.com/blog/h100-gpu-cost/

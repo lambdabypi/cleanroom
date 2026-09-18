@@ -1,0 +1,231 @@
+{
+  "arm": "random",
+  "seed": 1,
+  "episodes": 24,
+  "model": "claude-haiku-4-5",
+  "pinned_profile": "lean",
+  "max_repairs": 0,
+  "interleaved": true,
+  "scored": 24,
+  "stopped": null,
+  "spend_usd": 0.4373,
+  "wall_s": 1866.7,
+  "rows": [
+    {
+      "episode": 1,
+      "bucket": "table_heavy",
+      "strategy": "heading_sections",
+      "profile": "lean",
+      "scored": true,
+      "reward": 0.9319727891156463,
+      "url": "https://www.thundercompute.com/blog/nvidia-h100-pricing"
+    },
+    {
+      "episode": 2,
+      "bucket": "table_heavy",
+      "strategy": "list_items",
+      "profile": "lean",
+      "scored": true,
+      "reward": 0.9183673469387756,
+      "url": "https://getdeploying.com/gpus"
+    },
+    {
+      "episode": 3,
+      "bucket": "table_heavy",
+      "strategy": "table_parse",
+      "profile": "lean",
+      "scored": true,
+      "reward": 0.7534013605442177,
+      "url": "https://jarvislabs.ai/blog/h100-price"
+    },
+    {
+      "episode": 4,
+      "bucket": "table_heavy",
+      "strategy": "regex_fields",
+      "profile": "lean",
+      "scored": true,
+      "reward": 0.9183673469387756,
+      "url": "https://www.spheron.network/blog/gpu-cloud-pricing-comparison-2026/"
+    },
+    {
+      "episode": 5,
+      "bucket": "table_heavy",
+      "strategy": "table_parse",
+      "profile": "lean",
+      "scored": true,
+      "reward": 0.0,
+      "url": "https://www.cloudzero.com/blog/cloud-gpu-pricing-comparison/"
+    },
+    {
+      "episode": 6,
+      "bucket": "table_heavy",
+      "strategy": "label_value_pairs",
+      "profile": "lean",
+      "scored": true,
+      "reward": 0.9183673469387756,
+      "url": "https://getdeploying.com/gpus/nvidia-a100-vs-nvidia-h100"
+    },
+    {
+      "episode": 7,
+      "bucket": "table_heavy",
+      "strategy": "label_value_pairs",
+      "profile": "lean",
+      "scored": true,
+      "reward": 0.0,
+      "url": "https://www.cloudzero.com/blog/h100-gpu-cost/"
+    },
+    {
+      "episode": 8,
+      "bucket": "table_heavy",
+      "strategy": "label_value_pairs",
+      "profile": "lean",
+      "scored": true,
+      "reward": 0.9355531686358756,
+      "url": "https://www.thundercompute.com/blog/nvidia-a100-pricing"
+    },
+    {
+      "episode": 9,
+      "bucket": "table_heavy",
+      "strategy": "label_value_pairs",
+      "profile": "lean",
+      "scored": true,
+      "reward": 0.6683673469387755,
+      "url": "https://www.thundercompute.com/blog/nvidia-h100-pricing"
+    },
+    {
+      "episode": 10,
+      "bucket": "table_heavy",
+      "strategy": "heading_sections",
+      "profile": "lean",
+      "scored": true,
+      "reward": 0.8244897959183675,
+      "url": "https://getdeploying.com/gpus"
+    },
+    {
+      "episode": 11,
+      "bucket": "table_heavy",
+      "strategy": "table_parse",
+      "profile": "lean",
+      "scored": true,
+      "reward": 0.0,
+      "url": "https://jarvislabs.ai/blog/h100-price"
+    },
+    {
+      "episode": 12,
+      "bucket": "table_heavy",
+      "strategy": "label_value_pairs",
+      "profile": "lean",
+      "scored": true,
+      "reward": 0.9183673469387756,
+      "url": "https://www.spheron.network/blog/gpu-cloud-pricing-comparison-2026/"
+    },
+    {
+      "episode": 13,
+      "bucket": "table_heavy",
+      "strategy": "table_parse",
+      "profile": "lean",
+      "scored": true,
+      "reward": 0.9183673469387756,
+      "url": "https://www.cloudzero.com/blog/cloud-gpu-pricing-comparison/"
+    },
+    {
+      "episode": 14,
+      "bucket": "table_heavy",
+      "strategy": "label_value_pairs",
+      "profile": "lean",
+      "scored": true,
+      "reward": 0.9183673469387756,
+      "url": "https://getdeploying.com/gpus/nvidia-a100-vs-nvidia-h100"
+    },
+    {
+      "episode": 15,
+      "bucket": "table_heavy",
+      "strategy": "label_value_pairs",
+      "profile": "lean",
+      "scored": true,
+      "reward": 0.8826530612244899,
+      "url": "https://www.cloudzero.com/blog/h100-gpu-cost/"
+    },
+    {
+      "episode": 16,
+      "bucket": "table_heavy",
+      "strategy": "list_items",
+      "profile": "lean",
+      "scored": true,
+      "reward": 0.7299742863652638,
+      "url": "https://www.thundercompute.com/blog/nvidia-a100-pricing"
+    },
+    {
+      "episode": 17,
+      "bucket": "table_heavy",
+      "strategy": "table_parse",
+      "profile": "lean",
+      "scored": true,
+      "reward": 0.0,
+      "url": "https://www.thundercompute.com/blog/nvidia-h100-pricing"
+    },
+    {
+      "episode": 18,
+      "bucket": "table_heavy",
+      "strategy": "label_value_pairs",
+      "profile": "lean",
+      "scored": true,
+      "reward": 0.0,
+      "url": "https://getdeploying.com/gpus"
+    },
+    {
+      "episode": 19,
+      "bucket": "table_heavy",
+      "strategy": "regex_fields",
+      "profile": "lean",
+      "scored": true,
+      "reward": 0.739795918367347,
+      "url": "https://jarvislabs.ai/blog/h100-price"
+    },
+    {
+      "episode": 20,
+      "bucket": "table_heavy",
+      "strategy": "heading_sections",
+      "profile": "lean",
+      "scored": true,
+      "reward": 0.6683673469387755,
+      "url": "https://www.spheron.network/blog/gpu-cloud-pricing-comparison-2026/"
+    },
+    {
+      "episode": 21,
+      "bucket": "table_heavy",
+      "strategy": "list_items",
+      "profile": "lean",
+      "scored": true,
+      "reward": 0.0,
+      "url": "https://www.cloudzero.com/blog/cloud-gpu-pricing-comparison/"
+    },
+    {
+      "episode": 22,
+      "bucket": "table_heavy",
+      "strategy": "table_parse",
+      "profile": "lean",
+      "scored": true,
+      "reward": 0.9183673469387756,
+      "url": "https://getdeploying.com/gpus/nvidia-a100-vs-nvidia-h100"
+    },
+    {
+      "episode": 23,
+      "bucket": "table_heavy",
+      "strategy": "regex_fields",
+      "profile": "lean",
+      "scored": true,
+      "reward": 0.8884839650145774,
+      "url": "https://www.cloudzero.com/blog/h100-gpu-cost/"
+    },
+    {
+      "episode": 24,
+      "bucket": "table_heavy",
+      "strategy": "table_parse",
+      "profile": "lean",
+      "scored": true,
+      "reward": 0.7755102040816327,
+      "url": "https://www.thundercompute.com/blog/nvidia-a100-pricing"
+    }
+  ]
+}
