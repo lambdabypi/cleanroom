@@ -309,9 +309,11 @@ class Learner:
         # credit assignment for spend.
         #
         # This buys convergence *speed*, not asymptotic correctness: measured
-        # over 10 seeds, gating takes the right answer from 7/10 to 10/10 at 30
-        # episodes, while both reach 10/10 by 100. Demo runs live in exactly that
-        # 20-40 episode window. See tests/test_observability.py.
+        # over 20 seeds, gating takes the right answer from 15/20 to 19/20 at 30
+        # episodes without the cold-start floor, and everything reaches 19-20/20
+        # by 100. The floor is the larger lever at short horizons; the two
+        # compose. See tests/test_observability.py -- and note it is a simulation
+        # with stationary arms, which live pages are not.
         best_known_strategy = self.bandit.best_arm(bucket)
 
         # 3. Write code, run it, score it -- repairing at most `max_repairs` times.

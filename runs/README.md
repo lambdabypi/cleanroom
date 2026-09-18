@@ -77,6 +77,16 @@ it is easy to read a snapshot and over-claim from it.
 | `dataset.csv` | the extracted rows |
 | `learning_curve.png/.tsv` | the figure and its underlying table |
 
+**`2026-09-17-control-haiku` has a different shape**, because it is two runs, not
+one: a `bandit/` and a `random/` directory, each holding the files above, plus a
+`summary.json` per arm. It carries no `learning_curve.*` (a learning curve across
+two policies would be meaningless), and `calls.jsonl` appears only under
+`bandit/` — the call ledger is a process-wide singleton and both arms ran in one
+process, so **per-arm cost from that snapshot is not attributable.** Its total,
+`$0.4373`, is. Rewards are unaffected either way: they come from sandboxed
+validation, not the ledger. `verify_run.py` detects the layout and verifies each
+arm in turn.
+
 ## Snapshots
 
 ### `2026-09-16-paced-24` — the most complete run, with its claims stress-tested
@@ -208,9 +218,11 @@ result.** The same interleaved design on Groq's `openai/gpt-oss-20b` reached onl
 10 pairs favouring the bandit). It should not be cited on its own: the random arm
 lost 2 episodes to empty completions while the bandit lost none, and the bandit's
 zeros were mostly `stage=extract` crashes (`IndexError`, `NameError`,
-`extract() exceeded 25s`) rather than a badly chosen strategy. Two runs, two
-opposite directions, neither significant in the same place — which is what
-"underpowered" looks like from the inside.
+`extract() exceeded 25s`) rather than a badly chosen strategy. So: two runs
+pointing opposite ways — one nominally significant for random at n=10 pairs on a
+truncated, lopsided run, the other not significant at all at n=24 on a clean
+one. That is what "underpowered" looks like from the inside, and it is why
+neither direction should be reported as a finding.
 
 Diagnostics worth keeping from that run, because they point at design limits
 rather than bugs:

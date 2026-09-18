@@ -3,14 +3,22 @@
 **A self-improving web-to-clean-dataset ETL agent.**
 
 Cleanroom builds a structured, fully attributed dataset out of the live web. It
-does not know in advance how to read any given page, so it learns: it picks an
-extraction strategy, writes the code, runs that code in a sandbox, scores the
-rows that come out, and updates its beliefs about which strategy works on which
-kind of page. Over a run, the fraction of rows that survive validation goes up.
+does not know in advance how to read any given page, so it picks an extraction
+strategy, writes the code, runs that code in a sandbox, scores the rows that come
+out, and updates its beliefs about which strategy works on which kind of page.
 
-The interesting part is not that an LLM can write a parser. It is that the agent
-gets a **verifiable reward** for every attempt and uses it, so improvement is
-measured rather than asserted.
+The interesting part is not that an LLM can write a parser. It is that every
+attempt earns a **verifiable reward** — the schema-validation pass rate of rows
+produced by code that actually ran — so claims about improvement can be checked
+instead of asserted.
+
+**And when checked, the improvement does not yet hold up.** A controlled run
+found no significant advantage over picking strategies at random, and was too
+underpowered to settle it either way. That result, why it is weak evidence rather
+than strong, and the sample size a real answer needs are all in
+[What it actually learned](#what-it-actually-learned-and-what-it-did-not). The
+parts that *are* demonstrated — end-to-end operation, attribution by
+construction, PII screening, measured cost — are marked as such throughout.
 
 ```
 You.com page ──► classify shape ──► recall past lessons ──► pick strategy (bandit)
@@ -41,14 +49,17 @@ a **contextual bandit**, not policy-gradient fine-tuning.
 | | Verdict |
 |---|---|
 | PPO / GRPO on a policy network | No reward dataset, no GPU budget, and — worst — a half-trained policy is invisible in a three-minute demo. |
-| **Thompson sampling over a discrete strategy set** | Genuinely reinforcement learning. ~130 lines, CPU-only, and its state is a readable JSON file. Converges in 15–30 episodes *in simulation*; on live pages outcome noise is about twice the strategy signal, so a run that size cannot show it — see [What it actually learned](#what-it-actually-learned-and-what-it-did-not). |
+| **Thompson sampling over a discrete strategy set** | Genuinely reinforcement learning. ~155 lines, CPU-only, and its state is a readable JSON file. Converges in 15–30 episodes *in simulation*; on live pages outcome noise is about twice the strategy signal, so a run that size cannot show it — see [What it actually learned](#what-it-actually-learned-and-what-it-did-not). |
 | **Experiential memory (Reflexion-style)** | Carries the specific, textual lessons a numeric posterior cannot represent. |
 
 Cleanroom runs the last two together, because they fail differently. The bandit
 generalises *numerically* across pages of the same shape but cannot encode "this
 site hides the price in a data attribute". Memory encodes exactly that but cannot
-rank strategies. Running both is what makes the agent visibly improve *and* able
-to quote its own past mistake.
+rank strategies.
+
+Of the two, only the memory channel is demonstrably firing on live runs: 24/24
+and 29/30 episodes retrieved a prior lesson before acting. The numeric ranking is
+the part that is not yet demonstrated live.
 
 **Reward is continuous**, not a coin flip, so the Beta posterior is updated with
 fractional pseudo-counts (`alpha += r`, `beta += 1 - r`) — the standard treatment
@@ -238,19 +249,32 @@ between quality and spend, and it is a product decision rather than a fact.
 **One subtlety that took a measurement to find.** Two bandits learning
 simultaneously confound each other: while the strategy dimension is still
 exploring, every profile scores badly, so the cheapest wins on cost alone and the
-posterior can commit to `lean` for a page shape that needs `thorough`. The fix is
-on-policy credit assignment for spend — the profile bandit only learns from
-episodes that used the currently-best-known strategy. Measured over 10 seeds:
+posterior can commit to `lean` for a page shape that needs `thorough`.
 
-| Episodes | Ungated | Gated |
-|---|---|---|
-| 20 | 6/10 correct | 8/10 |
-| 30 | 7/10 | **10/10** |
-| 40 | 9/10 | 10/10 |
-| 100 | 10/10 | 10/10 |
+There are two independent fixes for that, and they are worth separating:
+**on-policy credit assignment** for spend (the profile bandit only learns from
+episodes that used the currently-best-known strategy) and the **cold-start
+floor** on the strategy bandit. Measured over 20 seeds, correct answer
+`thorough`, in `tests/test_observability.py`:
 
-So the gate buys convergence *speed*, not asymptotic correctness — and a demo run
-lives in exactly that 20–40 episode window.
+| Episodes | no floor, ungated | no floor, gated | floor, ungated | floor, gated |
+|---:|---:|---:|---:|---:|
+| 15 | 11/20 | 15/20 | 17/20 | **20/20** |
+| 20 | 15/20 | 17/20 | 18/20 | **20/20** |
+| 30 | 15/20 | 19/20 | 19/20 | **20/20** |
+| 50 | 18/20 | 20/20 | 20/20 | **20/20** |
+| 100 | 19/20 | 20/20 | 20/20 | **20/20** |
+
+**The floor is the larger single lever at short horizons**, and the gate adds on
+top of it. Both buy convergence *speed*, not asymptotic correctness — everything
+reaches 19–20/20 by 100 episodes — and a demo run lives in exactly the window
+where the difference shows.
+
+Worth being clear about what this table is and is not: it is a **simulation**,
+with stationary per-arm reward distributions. On live pages the reward is
+dominated by code-generation variance instead (see
+[What it actually learned](#what-it-actually-learned-and-what-it-did-not)), and
+no live run here is long enough to reproduce any of it.
 
 Two things the ledger caught about itself:
 
@@ -272,7 +296,7 @@ stops retrying into a wall and falls back instead. EWMA rather than a lifetime
 mean so a component that recovers is trusted again quickly — a tool should not be
 punished for an outage that ended ten episodes ago.
 
-Three concrete adaptations, all triggered by real provider behaviour:
+Four concrete adaptations, all triggered by real provider behaviour:
 
 | Failure | Response |
 |---|---|
@@ -409,6 +433,8 @@ work — crewai 1.x reorganised enough that an optimistic pin is a trap.
 | `DAYTONA_API_KEY` | [app.daytona.io](https://app.daytona.io) → Billing |
 | `ONE_SECRET`, `ONE_CONNECTION_KEYS` | `one init`, then `one list` for the connection key |
 | `ONE_PUBLISH_TARGET` | `owner/repo` the dataset is committed to |
+| `ANTHROPIC_API_KEY` | Only for the Anthropic writer. Also set `CLEANROOM_SYNTH_BACKEND=anthropic` — with `auto`, a configured OpenAI-compatible endpoint wins |
+| `ANTHROPIC_WORKSPACE_ID` | Required if that key is an **all-workspaces** key: it decides which workspace is *billed*, and without it every call fails. Console → Settings → Workspaces |
 
 `cleanroom doctor --live` makes one real call to each partner — including asking
 the code writer for an actual extractor and checking that it compiles. Auth
@@ -447,12 +473,12 @@ Hosted catalogues churn (`llama-3.3-70b-versatile` was decommissioned and
 returned a bare 404), so **`cleanroom models`** lists what your key can actually
 reach, and a 404 from the writer includes that list in the error.
 
-All backends receive byte-identical prompts, so switching provider mid-project
-does not silently change the task and invalidate a run. Output format differs by
-backend for a measured reason: Claude gets a JSON schema because structured
-output is native, while the others are asked for a fenced ```python block —
-JSON-escaping a multi-line program roughly triples its token count and was what
-triggered truncation.
+Every backend builds its task prompt from the same `build_synthesis_prompt`, so
+switching provider mid-project does not silently change the task and invalidate a
+run. Only the output-format instruction differs, for a measured reason: Claude
+gets a JSON schema because structured output is native, while the others are
+asked for a fenced ```python block — JSON-escaping a multi-line program roughly
+triples its token count and was what triggered truncation.
 
 ---
 
@@ -534,7 +560,8 @@ narration, written against the judging criteria.
 ```
 src/cleanroom/
   config.py               env-backed settings, provider auto-detection, preflight
-  cli.py                  doctor / run / report / costs / curve / ui / models / feedback
+  cli.py                  doctor / run / report / costs / curve / ui / models /
+                          feedback / strategies
   learning/
     strategies.py         action space (5 arms) + page-shape context buckets
     bandit.py             contextual Thompson sampling, fractional + discounted
@@ -608,6 +635,15 @@ because that failure mode is a *paid* call that fails.
 ---
 
 ## Submission description (200 words)
+
+> **Kept verbatim as the record of what was submitted on 2026-09-11. Two of its
+> claims have since been corrected and should not be repeated:**
+> One's `mem` lesson store never started on this machine (`pgserve`), so lessons
+> are in local JSONL — One provided credentials, action discovery and the GitHub
+> write-back, not memory. And *"exploration visibly collapses onto the learned
+> policy"* is not supported: a controlled rerun on 2026-09-17 found **no
+> significant advantage** over selecting strategies at random. See
+> [What it actually learned](#what-it-actually-learned-and-what-it-did-not).
 
 Building a structured dataset from the web means writing a bespoke parser per
 source, and those parsers break silently when pages change. Teams either
