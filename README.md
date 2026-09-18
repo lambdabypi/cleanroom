@@ -1,6 +1,12 @@
 # Cleanroom
 
-**A self-improving web-to-clean-dataset ETL agent.**
+**A web-to-clean-dataset ETL agent that writes its own extractors and scores
+each one by running it.** Every attempt earns a verifiable reward, so claims
+about quality are measured rather than asserted — including the claim that it
+is learning, which currently does not survive the measurement. The machinery
+for self-improvement is here and the rig to prove it works is here; the proof
+is not. [What it would take](#what-it-would-take-to-earn-self-improving) is
+costed out below.
 
 Cleanroom builds a structured, fully attributed dataset out of the live web. It
 does not know in advance how to read any given page, so it picks an extraction
@@ -741,6 +747,79 @@ run extractors locally — unsafe, for offline development only).
 - **The CrewAI Data Steward publish gate has been exercised less** than the
   direct publish path. `--publish` falls back to a direct One call if the crew
   path fails.
+
+---
+
+## What it would take to earn "self-improving"
+
+The honest answer is that it is achievable, it is cheap, and the main obstacle
+is not the algorithm. Ranked by expected value, with what each actually costs.
+
+### 1. Stop regenerating the extractor every episode
+
+**This is the whole game.** Reward variance here is dominated by code generation,
+not by the policy: within a repeated (page, strategy) cell the standard deviation
+is 0.258 against 0.133 between strategy means. The agent cannot distinguish
+"wrong strategy for this page" from "the model wrote broken code this time", and
+the second is twice as loud.
+
+Memoize the extractor per `(host, strategy)` and reuse it. Then:
+
+- The value of a pair becomes near-deterministic after **one** observation
+  instead of needing many noisy ones.
+- It is *cheaper*, not more expensive — a repeat visit skips the LLM call
+  entirely.
+- The learning problem becomes the interesting one: **given an unseen host,
+  which strategy do you try first?** That is transfer, and it is what a
+  page-shape feature is actually for.
+
+Cost: a day of work, negative running cost.
+
+### 2. Make the context predict the target
+
+Page *shape* does not determine which strategy wins — the bandit scored 0.921 on
+a page at episode 1 and 0.000 on the same page at episode 9. Add host to the
+bucket key, or skip the bandit entirely once a host has a known-good extractor
+and let it serve only cold hosts. Raise `min_pulls` to 2–3 while you are there;
+one pull on a pool spanning 0.306–0.923 difficulty discarded the best arm on an
+unlucky page.
+
+Cost: an afternoon.
+
+### 3. Then run an experiment that can actually answer the question
+
+Two options, and the second is better:
+
+| Design | What it needs | Cost |
+|---|---|---|
+| Repeat the current control, powered | 214 episodes/arm (80% power for a 0.10 difference) | ~$4.70, ~4.5 hours wall-clock |
+| **First-pick accuracy on unseen hosts** | 40–60 distinct hosts; brute-force all 5 strategies per host once to get ground truth, then score each policy's first choice | ~$3, and it is a *binomial* on hosts rather than a mean over noisy episodes |
+
+The second is the right experiment after step 1, because memoization makes repeat
+visits deterministic and moves the question to generalisation. It also needs
+**hosts**, not episodes — the current 8-page pool is the binding constraint, not
+the token budget.
+
+Also disable lesson retrieval in both arms when measuring. It is the last
+confound: each arm keeps its own lesson store, so the two diverge as soon as the
+arms do, and interleaving cannot fix that.
+
+### The honest ceiling
+
+Even done perfectly, this does not become a system that keeps getting better
+forever. Once a host has a working extractor, there is nothing left to learn
+about that host — the durable capability is **choosing well on pages it has never
+seen**, and that is a real but bounded thing. "Self-improving" is defensible for
+that; "improves without limit" would not be.
+
+### Not worth doing
+
+- **More arms.** Five is not the constraint; the reward noise is.
+- **Policy-gradient anything.** It would be learning the same signal-to-noise
+  ratio with far more machinery and far less interpretability.
+- **Chasing the aggregate reward curve.** It is confounded by page mix and
+  dominated by codegen variance. Per-bucket posteriors and the control are the
+  measurements that mean something.
 
 ## License
 

@@ -5,7 +5,7 @@ build-backend = "hatchling.build"
 [project]
 name = "cleanroom"
 version = "0.1.0"
-description = "A self-improving web-to-clean-dataset ETL agent that learns which extraction strategy works per source type"
+description = "A web-to-clean-dataset ETL agent that writes its own extractors and scores each one by running it in a sandbox"
 readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [

@@ -27,7 +27,11 @@ from cleanroom.learning.strategies import BUCKETS, STRATEGIES
 from cleanroom.pipeline.schema import SchemaError, available_schemas, load_schema
 from cleanroom.pipeline.synthesize import CreditsExhausted
 
-app = typer.Typer(add_completion=False, help="A self-improving web-to-clean-dataset ETL agent.")
+app = typer.Typer(
+    add_completion=False,
+    help="A web-to-clean-dataset ETL agent that writes its own extractors and "
+         "scores each one by running it in a sandbox.",
+)
 console = Console()
 
 
