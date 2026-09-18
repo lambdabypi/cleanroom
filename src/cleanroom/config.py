@@ -106,6 +106,12 @@ class Settings:
     # Anthropic (optional -- only used by the anthropic backend)
     anthropic_api_key: str = ""
     model: str = "claude-opus-5"
+    #: Required when the key is an *all-workspaces* key: such a key refuses
+    #: every request that does not name a workspace, and which workspace it
+    #: bills depends entirely on this value. A key scoped to one workspace
+    #: ignores it. Setting it explicitly is also the only way to be sure a run
+    #: charges the workspace you meant rather than a colleague's.
+    anthropic_workspace_id: str = ""
 
     # OpenAI-compatible backend (optional). One code path covers every provider
     # that speaks /chat/completions, so a free tier is a three-line .env change.
@@ -141,6 +147,9 @@ class Settings:
             synthesis_backend=_env("CLEANROOM_SYNTH_BACKEND", "auto").lower(),
             anthropic_api_key=_env("ANTHROPIC_API_KEY"),
             model=_env("CLEANROOM_MODEL", "claude-opus-5"),
+            anthropic_workspace_id=_env(
+                "CLEANROOM_ANTHROPIC_WORKSPACE_ID", _env("ANTHROPIC_WORKSPACE_ID")
+            ),
             llm_base_url=detected_base,
             llm_api_key=detected_key,
             llm_model=detected_model,

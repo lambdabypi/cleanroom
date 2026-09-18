@@ -336,6 +336,29 @@ _PLAN_SCHEMA = {
 }
 
 
+#: Models that accept `thinking: {"type": "adaptive"}` and `output_config.effort`.
+#: Haiku 4.5 and older accept neither -- `effort` is rejected outright, and
+#: thinking there needs an explicit `budget_tokens` instead. Writing an
+#: extractor is a short, well-specified task that does not need thinking, so on
+#: those models the request simply omits both rather than paying for a thinking
+#: budget. Matched by substring so a provider prefix or tag does not matter.
+_ADAPTIVE_THINKING_MODELS = (
+    "claude-fable-5",
+    "claude-mythos-5",
+    "claude-opus-5",
+    "claude-opus-4-8",
+    "claude-opus-4-7",
+    "claude-opus-4-6",
+    "claude-sonnet-5",
+    "claude-sonnet-4-6",
+)
+
+
+def supports_adaptive_thinking(model: str) -> bool:
+    needle = (model or "").lower()
+    return any(name in needle for name in _ADAPTIVE_THINKING_MODELS)
+
+
 class AnthropicSynthesizer:
     """Claude backend. Structured output, and the contract + schema are cached."""
 
@@ -351,7 +374,16 @@ class AnthropicSynthesizer:
         else:
             if not self.cfg.anthropic_api_key:
                 raise SynthesisError("ANTHROPIC_API_KEY is not set; run `cleanroom doctor`")
-            self.client = anthropic.Anthropic(api_key=self.cfg.anthropic_api_key)
+            # An all-workspaces key bills whichever workspace the header names,
+            # so pin it rather than letting the provider decide. A
+            # workspace-scoped key ignores the header.
+            headers = {}
+            if self.cfg.anthropic_workspace_id:
+                headers["anthropic-workspace-id"] = self.cfg.anthropic_workspace_id
+            self.client = anthropic.Anthropic(
+                api_key=self.cfg.anthropic_api_key,
+                default_headers=headers or None,
+            )
 
     def _system_blocks(self, schema: dict) -> list[dict]:
         return [
@@ -391,23 +423,41 @@ class AnthropicSynthesizer:
 
     def _request_inner(self, schema: dict, user_content: str, strategy_id: str,
                        repaired_from: str | None, anthropic) -> Extractor:
+        # Structured output works on every model; thinking and effort do not.
+        # Sending them to a model that rejects them fails the whole run on the
+        # first call, which is an expensive way to discover a config mismatch.
+        output_config: dict = {"format": {"type": "json_schema", "schema": _PLAN_SCHEMA}}
+        tuning: dict = {}
+        if supports_adaptive_thinking(self.cfg.model):
+            tuning["thinking"] = {"type": "adaptive"}
+            output_config["effort"] = "medium"
+
         try:
             response = self.client.messages.create(
                 model=self.cfg.model,
                 max_tokens=16000,
-                thinking={"type": "adaptive"},
-                output_config={
-                    "effort": "medium",
-                    "format": {"type": "json_schema", "schema": _PLAN_SCHEMA},
-                },
+                output_config=output_config,
                 system=self._system_blocks(schema),
                 messages=[{"role": "user", "content": user_content}],
+                **tuning,
             )
         except anthropic.AuthenticationError as exc:
             raise SynthesisError("Anthropic rejected ANTHROPIC_API_KEY") from exc
         except anthropic.RateLimitError as exc:
             raise SynthesisError("Anthropic rate limit hit; slow the loop down") from exc
         except anthropic.APIStatusError as exc:
+            # The workspace-scoping 400 is worth naming: the message tells you a
+            # header is missing but not which env var sets it, and the run has
+            # already failed its first episode by the time you read it.
+            if "not scoped to a workspace" in str(getattr(exc, "message", "")):
+                raise SynthesisError(
+                    "this ANTHROPIC_API_KEY is an all-workspaces key, so every "
+                    "request must name a workspace. Set "
+                    "CLEANROOM_ANTHROPIC_WORKSPACE_ID=wrkspc_... (Console -> "
+                    "Settings -> Workspaces), or use a key scoped to one "
+                    "workspace. Without it nothing runs; with the wrong one you "
+                    "bill the wrong workspace."
+                ) from exc
             raise SynthesisError(f"Anthropic API error {exc.status_code}: {exc.message}") from exc
         except anthropic.APIConnectionError as exc:
             raise SynthesisError(f"could not reach Anthropic: {exc}") from exc

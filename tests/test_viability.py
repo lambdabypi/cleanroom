@@ -440,3 +440,61 @@ def test_quota_detail_survives_an_unparseable_body():
     assert "no figures" in _quota_detail("429 Too Many Requests")
     assert "no figures" in _quota_detail("")
 
+
+# -- per-model request shape (Anthropic backend) ------------------------------
+
+
+def test_thinking_and_effort_only_go_to_models_that_accept_them():
+    """Haiku 4.5 rejects `effort` and does not take adaptive thinking.
+
+    Sending either fails the first call of a run, which is a costly way to find
+    out the configured model and the request shape disagree.
+    """
+    from cleanroom.pipeline.synthesize import supports_adaptive_thinking
+
+    for model in ("claude-opus-5", "claude-sonnet-5", "claude-opus-4-8",
+                  "claude-fable-5-1", "claude-sonnet-4-6"):
+        assert supports_adaptive_thinking(model), model
+    for model in ("claude-haiku-4-5", "claude-sonnet-4-5", "claude-3-5-haiku", ""):
+        assert not supports_adaptive_thinking(model), model
+
+
+def test_haiku_request_omits_effort_and_thinking():
+    """Drive the real request builder, not just the predicate."""
+    from cleanroom.config import Settings
+    from cleanroom.pipeline.synthesize import AnthropicSynthesizer
+
+    sent = {}
+
+    class _FakeMessages:
+        def create(self, **kwargs):
+            sent.update(kwargs)
+            raise RuntimeError("stop here -- we only care about the request shape")
+
+    class _FakeClient:
+        messages = _FakeMessages()
+
+    for model, expect_tuning in (("claude-haiku-4-5", False), ("claude-opus-5", True)):
+        sent.clear()
+        synth = AnthropicSynthesizer(
+            Settings(anthropic_api_key="k", model=model), client=_FakeClient()
+        )
+        try:
+            synth.synthesize(
+                schema=SCHEMA, document="| gpu | price |\n| H100 | 2.50 |",
+                source_url="https://example.test/p", strategy_id="table_parse",
+                bucket="table_heavy",
+            )
+        except Exception:
+            pass  # the fake always raises; the assertions are on what it received
+
+        assert sent["model"] == model
+        assert sent["output_config"]["format"]["type"] == "json_schema", \
+            "structured output must be requested on every model"
+        if expect_tuning:
+            assert sent.get("thinking") == {"type": "adaptive"}
+            assert sent["output_config"].get("effort") == "medium"
+        else:
+            assert "thinking" not in sent, "Haiku 4.5 does not take adaptive thinking"
+            assert "effort" not in sent["output_config"], "Haiku 4.5 rejects effort"
+
