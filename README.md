@@ -52,8 +52,46 @@ to quote its own past mistake.
 
 **Reward is continuous**, not a coin flip, so the Beta posterior is updated with
 fractional pseudo-counts (`alpha += r`, `beta += 1 - r`) — the standard treatment
-for bounded rewards in [0, 1]. A `discount` of 0.98 pulls old evidence toward the
-prior each update, so the agent can change its mind when a site changes shape.
+for bounded rewards in [0, 1]. Priors are `Beta(1, 1)`, i.e. uniform. A
+`discount` of 0.98 pulls old evidence toward the prior each update, so the agent
+can change its mind when a site changes shape.
+
+### The action space and the context
+
+Five **strategies** — the arms. Each is a different theory of where records live
+on a page, injected into the code-writing prompt as a hint; the model still
+writes the parser.
+
+| Strategy | Theory of the page |
+|---|---|
+| `table_parse` | Parse markdown/HTML tables structurally, one row per table row |
+| `heading_sections` | Split on headings, treat each section as one record |
+| `regex_fields` | One tuned regex per schema field, scanned over the whole page |
+| `label_value_pairs` | Detect `Label: value` and definition-list shapes |
+| `list_items` | One record per bullet or numbered list item |
+
+Four **buckets** — the context the posterior is keyed on. Assigned by cheap
+deterministic counting, no model call, in this order (structural signals beat
+textual ones, because a page with a table and some prose is still best handled as
+a table):
+
+| Bucket | Condition |
+|---|---|
+| `table_heavy` | ≥ 3 table rows |
+| `list_heavy` | ≥ 5 list items, and more list items than headings |
+| `sectioned` | ≥ 3 headings |
+| `prose` | everything else |
+
+So the strategy bandit holds 4 × 5 posteriors and the profile bandit 4 × 3. The
+bucket is page *shape*, not page *identity* — which is a real limitation, and a
+measured one; see [Honest limitations](#honest-limitations).
+
+Before Thompson sampling takes over, an **exploration floor** (`min_pulls`,
+default 1) takes any arm not yet tried that many times in the bucket. With five
+arms and identical uniform priors the first draws are near-uniform, so without
+the floor a bucket can miss an arm entirely over a short run. One pull is also
+too few for a pool with wildly varying page difficulty — again, see the
+limitations.
 
 ### Where the reward comes from
 
@@ -161,20 +199,35 @@ shape, where a profile is a spend budget:
 | `standard` | 18k chars | 1 |
 | `thorough` | 45k chars | 2 |
 
-Its reward is cost-penalised: `utility = value - LAMBDA * normalised_cost`. So
-the strategy bandit learns *what works* while the profile bandit learns *what is
-worth paying for*. The two land in different places for different page shapes,
-which is the whole point:
+Its reward is cost-penalised, so the strategy bandit learns *what works* while
+the profile bandit learns *what is worth paying for*:
 
 ```
-bucket: table_heavy      bucket: prose
-  lean      0.765          thorough  0.531
-  standard  0.584          standard  0.386
-  thorough  0.483          lean      0.322
+utility          = clamp(value - LAMBDA * normalised_cost, 0, 1)
+normalised_cost  = min(1, input_tokens / REF_TOKENS
+                          + max(0, llm_calls - 1) * REPAIR_COST_UNITS)
 ```
 
-The agent worked out that clean tables parse fine from a 6k excerpt — a 7x cut in
-input tokens at no loss of quality — while prose pages genuinely need the context.
+with `LAMBDA = 0.25`, `REF_TOKENS = 11,250` (the `thorough` budget in tokens, so
+the denominator needs no knowledge of the provider) and `REPAIR_COST_UNITS = 0.5`
+— a repair resends the document *and* the previous code, so it is not free.
+
+The intent is that the two bandits land in different places for different page
+shapes. **No committed run demonstrates that**, and an earlier version of this
+section claimed otherwise. The profile posteriors reverse between runs — `lean`
+best in the hackathon snapshot (0.645, n=2), `lean` *worst* in `clean-30` (0.462)
+and in `paced-24` (0.333, n=1) — and the `prose` bucket has **zero** profile
+pulls in every snapshot, so there is no prose column to report at all.
+
+Two things to keep in mind when reading a profile table:
+
+- **A cheap profile topping it is not evidence of equal quality.** The number is
+  a utility, already penalised for spend, so `lean` can win on cost alone. That
+  inference needs raw reward per profile, which is not what this posterior holds.
+- **The on-policy gate below leaves very little data.** Measured across the
+  snapshots, only 4 of 14, 10 of 30 and 10 of 24 episodes ever reached the
+  profile bandit — 1–5 pulls per arm. `verify_run.py` prints a `CAUTION` on every
+  snapshot for exactly this reason.
 
 Cost is normalised in **tokens, not dollars**, because tokens are what the profile
 controls and they are provider-independent: a posterior learned on Groq stays
@@ -577,6 +630,41 @@ publishing.
 Clean Data is enforced rather than claimed: attribution is injected so a row
 cannot be unsourced, PII is a validation failure, and a provenance manifest ships
 with every dataset. The loop closes with a real commit.
+
+---
+
+## Tunables
+
+Every number the behaviour depends on, in one place, with where it lives. The
+defaults are what produced the committed snapshots.
+
+| Constant | Default | Where | What it does |
+|---|---:|---|---|
+| `WEIGHTS` | 1.0 / 0.7 / 0.6 / 0.15 / 2.5 | `learning/reward.py` | channel weights: validity, coverage, completeness, provenance, human |
+| `HUMAN_SCALE` | `-1→0.0, 0→0.5, 1→1.0` | `learning/reward.py` | reviewer verdict mapped into [0, 1] |
+| `PRIOR_ALPHA` / `PRIOR_BETA` | 1.0 / 1.0 | `learning/bandit.py` | uniform `Beta(1,1)` prior on every arm |
+| `discount` | 0.98 | `learning/store.py` | shrinks old evidence toward the prior each update (the `bandit.py` class default is 1.0; both bandits are constructed with 0.98) |
+| `min_pulls` | 1 | `learning/store.py` | cold-start floor: try each arm this often per bucket before sampling |
+| `PROFILES` | 6k/0, 18k/1, 45k/2 | `learning/budget.py` | `lean` / `standard` / `thorough` — document budget and repair allowance |
+| `LAMBDA` | 0.25 | `learning/budget.py` | quality-per-token exchange rate. **`CLEANROOM_COST_LAMBDA`** |
+| `REF_TOKENS` | 11,250 | `learning/budget.py` | cost denominator = the `thorough` budget in tokens |
+| `REPAIR_COST_UNITS` | 0.5 | `learning/budget.py` | cost charged per LLM call beyond the first |
+| `REPAIR_THRESHOLD` | 0.55 | `pipeline/episode.py` | reward below this triggers a repair turn, if the profile allows one |
+| `MIN_USEFUL_CHARS` | 400 | `pipeline/viability.py` | shorter fetches are screened out before an episode is spent |
+| `DOC_SHARE_OF_TPM` | 0.35 | `pipeline/openai_compat.py` | share of the provider's per-minute token budget the document may use |
+| `MAX_RATE_LIMIT_RETRIES` | 5 | `pipeline/openai_compat.py` | attempts on a per-minute 429 |
+| `DEFAULT_BACKOFF_S` | 20.0 | `pipeline/openai_compat.py` | backoff when the provider advises nothing usable |
+| `MAX_TOTAL_BACKOFF_S` | 240.0 | `pipeline/openai_compat.py` | total wait for one completion before failing the episode |
+| `REQUEST_TIMEOUT` | 180 | `pipeline/openai_compat.py` | per-request timeout, seconds |
+| `daytona_auto_stop_minutes` | 15 | `config.py` | idle sandbox teardown |
+| `expected_rows_per_page` | per schema | `schemas/*.json` | denominator for the coverage channel; a hand-set guess |
+
+Environment overrides worth knowing: **`CLEANROOM_COST_LAMBDA`**,
+**`CLEANROOM_SYNTH_BACKEND`** (`auto` / `compat` / `anthropic` / `you`),
+**`CLEANROOM_MODEL`**, **`CLEANROOM_ANTHROPIC_WORKSPACE_ID`** (required if the
+Anthropic key is an all-workspaces key — it decides which workspace is billed),
+**`CLEANROOM_STATE_DIR`**, and **`CLEANROOM_LOCAL_VALIDATE`** (skip Daytona and
+run extractors locally — unsafe, for offline development only).
 
 ---
 
