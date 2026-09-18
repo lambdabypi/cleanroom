@@ -28,7 +28,7 @@ You.com page ──► classify shape ──► recall past lessons ──► pi
                                             valid rows ──► dataset ──► One ──► GitHub
 ```
 
-~7,000 lines of Python, 110 tests that run in under a second with no credentials
+~8,400 lines of Python, 143 tests that run in a few seconds with no credentials
 and no network.
 
 ---
@@ -41,7 +41,7 @@ a **contextual bandit**, not policy-gradient fine-tuning.
 | | Verdict |
 |---|---|
 | PPO / GRPO on a policy network | No reward dataset, no GPU budget, and — worst — a half-trained policy is invisible in a three-minute demo. |
-| **Thompson sampling over a discrete strategy set** | Genuinely reinforcement learning. ~130 lines, CPU-only, converges in 15–30 episodes, and its state is a readable JSON file. |
+| **Thompson sampling over a discrete strategy set** | Genuinely reinforcement learning. ~130 lines, CPU-only, and its state is a readable JSON file. Converges in 15–30 episodes *in simulation*; on live pages outcome noise is about twice the strategy signal, so a run that size cannot show it — see [What it actually learned](#what-it-actually-learned-and-what-it-did-not). |
 | **Experiential memory (Reflexion-style)** | Carries the specific, textual lessons a numeric posterior cannot represent. |
 
 Cleanroom runs the last two together, because they fail differently. The bandit
@@ -83,23 +83,50 @@ injected by the validator, which makes attribution a structural guarantee rather
 than something the agent might learn. The channel survives at low weight as an
 alarm — if it ever drops below 1.0, injection is broken.
 
-### What it actually learned
+### What it actually learned, and what it did not
 
-From a real 17-episode run against live GPU-pricing pages:
+The mechanism runs end to end and reliably: retrieval, sandboxed execution,
+scoring, credit assignment, lesson writing, and a real commit. Across the
+committed snapshots every published row carries an http source URL (179/179 and
+193/193), an independent PII scan of the output is clean, and a run costs
+`$0.0006`–`$0.0023` of in-episode spend.
 
+**No live run in this repo demonstrates a learned strategy preference.** Three
+runs produced three different winners — `table_parse`, `list_items`,
+`heading_sections` — each from 2–9 pulls. Pooled over the 48 episodes of the
+control run, `table_parse`, which an earlier draft of this README presented as
+the best arm, is the *worst* of the five (0.374 against 0.69–0.72).
+
+A control ran on 2026-09-17: 24 episodes per arm, Thompson sampling against
+uniform-random strategy selection, interleaved so both arms see the same page at
+the same index, with the execution profile pinned so strategy choice is the only
+difference. **No significant difference** — mean paired difference +0.021,
+sign-flip p = 0.82, 10 of 24 pairs favouring the bandit.
+
+That null is weak evidence rather than strong. Reward variance here is mostly
+code generation, not policy: across the (page, strategy) cells that repeat, the
+standard deviation *inside* a cell is 0.258 — the same page with the same
+strategy returns `[0.918, 0.0]` — while the spread between strategy means is
+0.133. At n=24 the design could only have detected a difference of about 0.3.
+Detecting 0.10 would need ~214 episodes per arm. **The honest reading is "not
+measured", not "no effect".**
+
+What this repo does support about the learning itself: the strategy bandit
+provably converges on a better arm **in simulation**
+(`tests/test_observability.py`), with the exploration floor and the on-policy
+cost gate measured separately over 20 seeds.
+
+Check any of it without trusting this file:
+
+```bash
+python scripts/verify_run.py    runs/2026-09-16-paced-24
+python scripts/compare_arms.py  runs/2026-09-17-control-haiku
 ```
-bucket: table_heavy
-  strategy           posterior   pulls   observed
-  table_parse          0.763       4      0.899
-  heading_sections     0.716       3      0.863
-  label_value_pairs    0.584       1      0.753
-  regex_fields         0.543       3      0.578
 
-bucket: prose        → best strategy: regex_fields
-bucket: table_heavy  → best profile:  lean
-```
-
-Cost: about half a cent.
+Both are dependency-free and import nothing from `cleanroom`; they recompute
+each number from the artifacts and print a `CAUTION` wherever the data is too
+thin for the claim. [`runs/README.md`](runs/README.md) lists, per snapshot,
+exactly which claims the artifacts support and which must not be cited.
 
 ---
 
@@ -196,7 +223,8 @@ Three concrete adaptations, all triggered by real provider behaviour:
 
 | Failure | Response |
 |---|---|
-| `429` rate limit | Honour `Retry-After`, back off up to 3 times. A 429 is a wait, not a failure — treating it as one threw away 6 of 8 episodes in testing. |
+| `429` per-minute limit | Honour `Retry-After` and back off, up to 5 attempts capped at 240s total. A 429 is a wait, not a failure — treating it as one threw away 6 of 8 episodes in testing. A token pacer also spaces calls against the provider's discovered per-minute ceiling, so the limit is avoided rather than bounced off. |
+| `429` per-**day** limit | Abort, with the provider's own figures. A 429 does not say which limit it means and the `x-ratelimit-*` headers describe only the minute bucket — during a daily refusal they read `remaining-tokens: 8000, reset: 1ms`. Only the response body distinguishes them. Retrying a daily cap spends the whole retry budget and then logs the episode as a code-writer failure, which reads as the agent's fault. |
 | `413` payload too large | **Halve the document budget and retry**, then write a lesson so the profile bandit learns that tier's ceiling. |
 | `402` credits exhausted | Abort the run immediately. Grinding on would log 20 zero-reward episodes that look like a broken policy rather than a dead API key. |
 
@@ -255,7 +283,7 @@ not as a paragraph in a README:
 |---|---|---|
 | **You.com** | Live observation. `POST /search` with `extraction_mode: full_page` gets ranking *and* page markdown in one call; `POST /contents` backfills pages that came back thin. | `partners/you_client.py` |
 | **Daytona** | The environment and the reward oracle. Model-written code runs here and nowhere else. | `partners/daytona_env.py` |
-| **One** | Credential layer, the `mem` lesson store, and the write-back that closes the loop. | `partners/one_client.py` |
+| **One** | Credential layer, action discovery, and the GitHub write-back that closes the loop. The `mem` lesson store is integrated too, but its embedded Postgres (`pgserve`) never started on this machine, so every lesson fell back to local JSONL with `synced: false`. Do not read the lessons as being stored in One. | `partners/one_client.py` |
 | **CrewAI** | Source triage before the loop, and the publish gate after it. | `crew/crew.py` |
 | **The code writer** | Writes and repairs `extract()`. Pluggable: any OpenAI-compatible endpoint, Anthropic, or You.com Agents. | `pipeline/synthesize.py` |
 
@@ -489,6 +517,12 @@ tests/
   test_integration_pieces.py   MCP hardening, schema checks, execution fallback
   test_observability.py   pricing, ledger, circuit breaker, efficiency bandit
   test_feedback.py        verdict parsing, posterior updates, constraint suggestion
+  test_viability.py       source screen, exploration floor, token pacer,
+                          per-minute vs per-day 429s, per-model request shapes
+scripts/
+  verify_run.py           recompute one snapshot's claims   (no dependencies)
+  compare_arms.py         recompute the bandit-vs-random control  (no dependencies)
+runs/                     committed state snapshots + what each one supports
 state/                    posteriors, episode log, dataset, memory, ledger  (gitignored)
 ```
 
@@ -502,7 +536,7 @@ quietly disagreeing about what "valid" means.
 ## Tests
 
 ```bash
-pytest -q      # 110 tests, no credentials, no network, ~0.9s
+pytest -q      # 143 tests, no credentials, no network, ~3s
 ```
 
 They cover the property the whole demo rests on — given a genuinely better arm,
@@ -510,6 +544,13 @@ the bandit finds it — plus reward monotonicity, PII rejection, source-URL
 injection, posterior round-tripping, the credential-stripping in the MCP
 hardening layer, the two-bandit confounding gate, and the $15/call Agents price
 (asserted so a careless edit breaks a test rather than a budget).
+
+Several exist because a real run failed and the unit tests were green anyway:
+the token pacer is driven through `_post_with_backoff` rather than in isolation
+(testing the collaborator alone missed a `NameError` on the first live call),
+the per-day/per-minute 429 split uses response bodies captured verbatim from the
+provider, and the per-model request shape is asserted against a fake client
+because that failure mode is a *paid* call that fails.
 
 ---
 
@@ -541,9 +582,28 @@ with every dataset. The loop closes with a real commit.
 
 ## Honest limitations
 
+- **No live run is large enough to show the bandit works.** The 2026-09-17
+  control found no significant difference from uniform-random selection, and was
+  far too underpowered to settle it either way (~214 episodes/arm needed to
+  detect a 0.10 reward difference; every run here is 14–30 episodes). Treat the
+  learning claims as demonstrated in simulation only.
 - **The bandit's context is page *shape*, not page *identity*.** Two pricing
   tables with different DOM conventions land in the same bucket. Per-host
-  learning is left to the memory channel.
+  learning is left to the memory channel. Measured consequence: in one control
+  arm the bandit scored 0.921 on a page at episode 1 and 0.000 on that same page
+  at episode 9 — it cannot represent "this strategy for this host".
+- **The cold-start floor is one pull per arm, which is too few for this pool.**
+  Per-page difficulty spans 0.306–0.923, so a single trial says more about which
+  page came up than which strategy was chosen. In one control arm the best
+  available strategy was tried once, on the hardest page, scored 0.000, and was
+  effectively discarded; uniform random drew it five times and scored ~0.92.
+- **The cost/profile bandit is the least supported thing here.** Its on-policy
+  gate only credits episodes that used the currently-best-known strategy, which
+  discards most of a run: 4 of 14, 10 of 30, 10 of 24 episodes reached it across
+  the three snapshots. That leaves 1–5 pulls per arm, the winner reverses between
+  runs (`lean` → `standard` → `thorough`), and because the utilities are
+  cost-penalised a cheap profile winning is not evidence of equal quality.
+  `verify_run.py` says so on every snapshot.
 - **Five arms is a small action space.** It converges fast, which is the point,
   but it cannot invent a strategy that isn't in the list.
 - **Revisiting pages inflates apparent learning.** With more episodes than
